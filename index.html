@@ -562,6 +562,11 @@ select,.field input{height:44px;border-radius:12px;background:var(--surface2);bo
   var S = {created:false, p:JSON.parse(JSON.stringify(DEFAULT_P)), chat:[], calls:[], mic:"ko", apiKey:"", model:"claude-haiku-5-5"};
   try { var sv = JSON.parse(localStorage.getItem("ieum-live6") || "null"); if (sv) { for (var k in sv) if (k in S) S[k] = sv[k]; S.p = Object.assign({}, DEFAULT_P, S.p || {}); } } catch(e) {}
   function store(){ try { localStorage.setItem("ieum-live6", JSON.stringify(S)); } catch(e) {} }
+  /* a shared link can carry the key after #key= : it is saved in this browser and removed from the address bar */
+  try {
+    var hk = (location.hash.match(/[#&]key=([^&]+)/) || [])[1];
+    if (hk) { S.apiKey = decodeURIComponent(hk).trim(); store(); window.history.replaceState(null, "", location.pathname + location.search); }
+  } catch(e) {}
 
   /* ---------- characters: a cozy room, a cardigan, a warm face (style of the reference images) ---------- */
   var HANA = {cardigan:"#3E4F73", skin:"#EBC3A3", hair:"#1E1614", style:"bun"};
