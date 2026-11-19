@@ -744,10 +744,12 @@ select,.field input{height:44px;border-radius:12px;background:var(--surface2);bo
       return fetch("https://api.anthropic.com/v1/messages", {
         method:"POST", signal: ctl.signal,
         headers:{"content-type":"application/json","x-api-key":S.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body: JSON.stringify({model:S.model, max_tokens: opts.image ? 2000 : 700, system:system, messages: opts.image ? withImage(msgs, opts.image) : msgs})
+        body: JSON.stringify({model:S.model, max_tokens: opts.image ? 3000 : opts.json ? 3000 : 1000, system:system, messages: opts.image ? withImage(msgs, opts.image) : msgs})
       }).then(function(r){
-        return r.json().then(function(j){
+        return r.text().then(function(raw){
+          var j = null; try { j = JSON.parse(raw); } catch(e) {}
           if (!r.ok) throw {code:"api", message:(j && j.error && j.error.message) || ("HTTP " + r.status)};
+          if (!j) throw {code:"api", message:"unreadable reply"};
           var text = (j.content || []).filter(function(c){ return c.type === "text"; }).map(function(c){ return c.text; }).join("").trim();
           return opts.json ? parseJSON(text) : text;
         });
@@ -763,7 +765,7 @@ select,.field input{height:44px;border-radius:12px;background:var(--surface2);bo
     if (c === "session_expired") return "Your claude.ai session expired. Sign in again.";
     if (c === "api") return "The API said: " + e.message;
     if (c === "cancelled") return "";
-    return "The connection dropped for a moment. Try again.";
+    return "The connection dropped for a moment. Try again." + (e && e.message ? " (" + String(e.message).slice(0, 90) + ")" : "");
   }
 
   /* ---------- speech recognition helper ---------- */
