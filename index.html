@@ -66,6 +66,8 @@ input,select{font:inherit;color:var(--fg)}
 .back{width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:#AEB8FF;margin-left:-10px}
 .msgs{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-block:16px;scrollbar-width:none}
 .msgs::-webkit-scrollbar{display:none}
+.msgs>*{flex-shrink:0}
+.msgs .big{min-height:56px;margin-top:8px;box-shadow:0 0 0 4px rgba(140,155,255,.22),0 8px 24px rgba(140,155,255,.25)}
 .m{max-width:82%;padding:11px 15px;font-size:15px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;animation:rise .3s ease-out both}
 .m.h{align-self:flex-start;background:var(--surface2);border-radius:20px 20px 20px 6px}
 .m.u{align-self:flex-end;background:var(--accent);color:#0E1120;border-radius:20px 20px 6px 20px}
@@ -670,7 +672,9 @@ select,.field input{height:44px;border-radius:12px;background:var(--surface2);bo
     return room + person;
   }
   function portrait(o){ return '<svg viewBox="62 130 266 266" aria-hidden="true">' + faceMarkup(o, false) + '</svg>'; }
-  function paintHana(){ document.querySelectorAll("[data-hana]").forEach(function(el){ el.innerHTML = portrait(HANA); }); }
+  /* Hana uses a plain default profile picture (a simple friendly bot on a rounded square), so she reads as the app's guide, not a person (colored to match the app) */
+  var HANA_AV = '<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#343C6E"></rect><path d="M50 22 V30" stroke="#AEB8FF" stroke-width="4" stroke-linecap="round"></path><circle cx="50" cy="19" r="5" fill="#2FBF71"></circle><rect x="22" y="30" width="56" height="44" rx="18" fill="#AEB8FF"></rect><rect x="15" y="45" width="7" height="14" rx="3.5" fill="#AEB8FF"></rect><rect x="78" y="45" width="7" height="14" rx="3.5" fill="#AEB8FF"></rect><rect x="30" y="40" width="40" height="24" rx="12" fill="#1C2140"></rect><circle cx="41" cy="52" r="4.5" fill="#AEB8FF"></circle><circle cx="59" cy="52" r="4.5" fill="#AEB8FF"></circle></svg>';
+  function paintHana(){ document.querySelectorAll("[data-hana]").forEach(function(el){ el.innerHTML = HANA_AV; el.style.borderRadius = "38%"; }); }
   paintHana();
 
   /* ---------- screens ---------- */
@@ -1246,11 +1250,29 @@ select,.field input{height:44px;border-radius:12px;background:var(--surface2);bo
   var voices = [];
   function loadVoices(){ try { voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; } catch(e) { voices = []; } }
   loadVoices(); if (window.speechSynthesis) speechSynthesis.onvoiceschanged = loadVoices;
+  /* Choose the most natural voice the browser has: neural/online voices first (Edge "Natural", Chrome "Google"), then Apple premium voices, preferring women's voices. The choice is kept so she always sounds the same. */
+  var voiceCache = {};
+  var FEMALE = /female|woman|sunhi|yuna|sora|heami|seoyeon|jiyoung|hoaimy|linh|jenny|aria|ava|emma|michelle|samantha|allison|susan|zira|libby|sonia|natasha|clara|xiaoxiao|xiaoyi|nanami|blessica|rosa|angela|amira|swara|hemkala|elsa|sofie|hillevi|katja|denise|elvira|paulina|francisca|madina|aigul|yesui|sreymom|premwadee|achara|gadis|tuti/i;
+  var MALE = /\bmale\b|\bman\b|injoon|hyunsu|namminh|guy|davis|tony|brandon|christopher|eric|jacob|roger|steffan|ryan|thomas|daniel|alex|fred|aaron|arthur|gordon|reed|rocko|eddy/i;
+  function scoreVoice(v){
+    var n = v.name || "", sc = 0;
+    if (/natural|neural|online/i.test(n)) sc += 50;
+    if (/google/i.test(n)) sc += 30;
+    if (/premium|enhanced|siri/i.test(n)) sc += 25;
+    if (FEMALE.test(n)) sc += 15;
+    if (MALE.test(n)) sc -= 20;
+    if (/compact|espeak|robot|novelty|whisper|bells|organ|zarvox|trinoids|albert|bahh|boing|bubbles|cellos|jester|superstar|wobble|grandma|grandpa|rocko|sandy|shelley|flo|eddy|reed/i.test(n)) sc -= 40;
+    if (v.localService === false) sc += 5;
+    return sc;
+  }
   function pickVoice(lang){
+    if (voiceCache[lang] && voices.indexOf(voiceCache[lang]) >= 0) return voiceCache[lang];
     var base = lang.split("-")[0];
-    var pool = voices.filter(function(v){ return v.lang === lang; }); if (!pool.length) pool = voices.filter(function(v){ return (v.lang || "").indexOf(base) === 0; });
-    var fem = pool.filter(function(v){ return /female|yuna|sora|heami|google|samantha|zira|linh|natural/i.test(v.name); });
-    return fem[0] || pool[0] || null;
+    var pool = voices.filter(function(v){ return (v.lang || "").replace("_", "-") === lang; });
+    if (!pool.length) pool = voices.filter(function(v){ return (v.lang || "").indexOf(base) === 0; });
+    if (!pool.length) return null;
+    pool = pool.slice().sort(function(x, y){ return scoreVoice(y) - scoreVoice(x); });
+    voiceCache[lang] = pool[0]; return pool[0];
   }
   function splitScripts(text){
     var out = [], cur = null;
@@ -1258,7 +1280,9 @@ select,.field input{height:44px;border-radius:12px;background:var(--surface2);bo
       var ch = text[i], ko = /[가-힣ㄱ-ㆎ]/.test(ch), neutral = /[\s\d.,!?~'"()\-:;…]/.test(ch);
       if (cur && (neutral || cur.ko === ko)) cur.text += ch; else { cur = {ko:ko, text:ch}; out.push(cur); }
     }
-    return out.filter(function(s){ return s.text.trim(); });
+    var res = [];
+    out.forEach(function(seg){ (seg.text.match(/[^.!?。？！]+[.!?。？！]*\s*/g) || [seg.text]).forEach(function(t){ if (t.trim()) res.push({ko:seg.ko, text:t}); }); });
+    return res;
   }
   var speakToken = 0, speaking = false;
   function speak(text, done, forceLang){
@@ -1274,7 +1298,7 @@ select,.field input{height:44px;border-radius:12px;background:var(--surface2);bo
       var s = segs[i++], u = new SpeechSynthesisUtterance(s.text);
       u.lang = s.ko ? "ko-KR" : other;
       var v = pickVoice(u.lang) || (s.ko ? null : pickVoice("en-US")); if (v) u.voice = v;
-      u.rate = s.ko ? 0.92 : 1.02; u.pitch = 1.05;
+      u.rate = s.ko ? 0.95 : 1; u.pitch = 1;
       var moved = false, guard = setTimeout(function(){ if (!moved) { moved = true; next(); } }, 2500 + s.text.length * 110);
       u.onend = u.onerror = function(){ if (moved) return; moved = true; clearTimeout(guard); next(); };
       speechSynthesis.speak(u);
