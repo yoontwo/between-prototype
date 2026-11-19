@@ -1,0 +1,1711 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body>
+<title>Between Live Call</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: the app lives inside a 390x844 phone, scaled to fit the screen (full-bleed on a real phone).
+   Welcome → Hana onboarding chat → Meet your friend → Contacts → Hana chat / video call. Single dark look, like the Between prototype. */
+:root{
+  --out:#0A0B12; --frame:#1B1D26; --bg:#0E1120; --surface:#181C2E; --surface2:#232842; --line:#2E3450;
+  --fg:#F3F4F9; --muted:#A9AEC6; --accent:#8C9BFF; --go:#2FBF71; --stop:#E5484D; --mint:#7FE0A8; --warn:#F6C177;
+  --glass:rgba(10,12,23,.62);
+  --sans:Inter,"Noto Sans KR",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{background:var(--out);color:var(--fg);font-family:var(--sans);font-size:15px;margin:0;overflow:hidden}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,select{font:inherit;color:var(--fg)}
+
+/* phone */
+.stage{height:100%;display:flex;align-items:center;justify-content:center;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.phone{flex-shrink:0;width:414px;height:868px;padding:12px;border-radius:58px;background:var(--frame);box-shadow:0 0 0 2px #2C2F3B,0 30px 80px rgba(0,0,0,.55);position:relative;transform-origin:center}
+.island{position:absolute;z-index:30;top:22px;left:50%;width:118px;height:34px;margin-left:-59px;border-radius:20px;background:#000}
+.app{width:390px;height:844px;border-radius:46px;position:relative;overflow:hidden;background:var(--bg)}
+.bare .stage{padding:0}
+.bare .phone{width:100%;height:100%;padding:0;border-radius:0;box-shadow:none;background:var(--bg)}
+.bare .island{display:none}
+.bare .app{width:100%;height:100%;border-radius:0}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+.pad{padding-left:20px;padding-right:20px}
+
+/* shared bits */
+.av{border-radius:50%;overflow:hidden;flex-shrink:0}
+.av svg{display:block;width:100%;height:100%}
+.nm{font-size:17px;font-weight:600;display:flex;align-items:center;gap:6px}
+.ai{font-size:11px;font-weight:700;padding:2px 6px;border-radius:6px;background:var(--line);color:#C9CDE0}
+.sub{font-size:13px;color:var(--muted);margin-top:2px}
+.big{height:56px;border-radius:28px;font-size:17px;font-weight:600;background:var(--accent);color:#0E1120;display:flex;align-items:center;justify-content:center;gap:10px;width:100%}
+.big.green{background:var(--go);color:#07130C}
+.ghost{height:46px;border-radius:23px;border:1px solid var(--line);font-size:14px;font-weight:500;width:100%}
+.toast{position:absolute;z-index:20;left:20px;right:20px;top:60px;background:var(--go);color:#07130C;border-radius:14px;padding:12px 16px;font-size:14px;font-weight:600;animation:rise .3s ease-out both}
+
+/* welcome */
+.welcome{padding-block:76px 34px;gap:22px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px}
+.logo small{font-weight:500;color:var(--muted);font-size:14px}
+.welcome h1{margin:0;font-size:34px;line-height:1.15;letter-spacing:-.02em;text-wrap:balance}
+.welcome p{margin:0;color:var(--muted);font-size:16px;line-height:1.5}
+.hb{display:flex;gap:12px;align-items:flex-end}
+.hb .bub{background:var(--surface2);border-radius:20px 20px 20px 6px;padding:14px 16px;font-size:15px;line-height:1.45}
+.link{font-size:13px;color:var(--muted);text-decoration:underline;align-self:center}
+
+/* chat (Hana) */
+.hdr{padding-top:56px;padding-bottom:12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #222740}
+.back{width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:#AEB8FF;margin-left:-10px}
+.msgs{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-block:16px;scrollbar-width:none}
+.msgs::-webkit-scrollbar{display:none}
+.m{max-width:82%;padding:11px 15px;font-size:15px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;animation:rise .3s ease-out both}
+.m.h{align-self:flex-start;background:var(--surface2);border-radius:20px 20px 20px 6px}
+.m.u{align-self:flex-end;background:var(--accent);color:#0E1120;border-radius:20px 20px 6px 20px}
+.m.sys{align-self:center;max-width:92%;font-size:12.5px;color:#BFE9D0;background:rgba(47,191,113,.12);border:1px solid rgba(47,191,113,.35);border-radius:12px;padding:6px 10px}
+.m.err{align-self:center;max-width:92%;font-size:12.5px;color:#5C4210;background:#FFF1CF;border-radius:12px;padding:8px 12px}
+.typing{align-self:flex-start;background:var(--surface2);border-radius:18px;padding:14px 16px;display:flex;gap:5px}
+.typing b,.dots b{width:7px;height:7px;border-radius:4px;background:var(--muted);animation:dot 1.2s infinite}
+.typing b:nth-child(2),.dots b:nth-child(2){animation-delay:.15s}.typing b:nth-child(3),.dots b:nth-child(3){animation-delay:.3s}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;padding-bottom:10px}
+.chip{min-height:38px;padding:0 14px;border-radius:19px;border:1px solid #4A5178;font-size:13.5px;text-align:left}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#0E1120;font-weight:600}
+.pickhint{width:100%;text-align:right;font-size:12px;color:var(--muted)}
+.pickdone{min-height:38px;padding:0 16px;border-radius:19px;background:var(--go);color:#07130C;font-weight:700;font-size:13.5px}
+.inbar{padding-top:10px;padding-bottom:28px;border-top:1px solid #222740;display:flex;gap:8px;align-items:center}
+.inbox{flex:1;min-width:0;height:48px;border-radius:24px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;padding:0 6px 0 16px}
+.inbox input{flex:1;min-width:0;background:transparent;border:none;outline:none;height:100%;font-size:15px}
+.send{width:36px;height:36px;border-radius:18px;background:var(--line);display:flex;align-items:center;justify-content:center}
+.hmic{width:50px;height:50px;border-radius:25px;background:var(--accent);color:#0E1120;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.hmic.on{background:var(--stop);color:#fff;animation:ring 1.4s infinite}
+.mini{margin-top:12px;background:var(--surface);border-radius:16px;padding:10px 12px;display:flex;gap:12px;align-items:center}
+.mini .t{font-size:12px;line-height:1.45;color:#C9CDE0;min-width:0}
+.mini .t b{display:block;font-size:15px;color:var(--fg)}
+
+/* meet */
+.meetscroll{flex:1;min-height:0;overflow-y:auto;padding-block:56px 14px;display:flex;flex-direction:column;gap:12px}
+.mtop{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+.mkick{margin-top:4px;font-size:13px;font-weight:600;color:var(--muted)}
+.mtop h2{margin:0;font-size:28px;letter-spacing:-.01em}
+.mid{font-size:15px;color:#D7DAE8}
+.mbadge{display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:12.5px;font-weight:600;color:#C9CDE0;background:var(--surface2);border-radius:999px;padding:5px 12px}
+.mbadge svg{color:var(--accent)}
+.mhead{font-size:14px;font-weight:700;margin:4px 2px -6px}
+.mrows{background:var(--surface);border-radius:20px;padding:4px 16px}
+.mrow{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.mrow:last-child{border-bottom:none}
+.mrow .mi{width:36px;height:36px;border-radius:18px;background:var(--surface2);color:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mrow .mt{font-size:13px;font-weight:600;color:var(--muted)}
+.mrow .mv{font-size:15px;line-height:1.45;margin-top:2px}
+.mrow .mchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.mrow .mchips span{background:var(--surface2);border-radius:999px;padding:5px 11px;font-size:13.5px;font-weight:500}
+.meetbar{padding-top:10px;padding-bottom:26px;border-top:1px solid #222740}
+.helper{background:rgba(140,155,255,.14);border:1px solid rgba(140,155,255,.4);border-radius:18px;padding:12px 16px;font-size:15px;line-height:1.5;text-align:center;font-weight:500}
+.official{background:rgba(47,191,113,.1);border:1px solid rgba(47,191,113,.35);border-radius:18px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.45;color:#D9DCEB}
+.official b{color:var(--fg)}
+
+/* contacts */
+.contacts{overflow-y:auto;padding-block:62px 28px;gap:14px}
+.ch{display:flex;justify-content:space-between;align-items:center}
+.ch h1{margin:0;font-size:32px;letter-spacing:-.02em}
+.gear{width:44px;height:44px;border-radius:22px;background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.sect{font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--muted);margin-top:6px}
+.row{background:var(--surface);border-radius:20px;padding:12px;display:flex;align-items:center;gap:12px}
+.row .main{flex:1;min-width:0;display:flex;align-items:center;gap:12px;text-align:left}
+.rnd{width:46px;height:46px;border-radius:23px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.rnd.go{background:var(--go);color:#07130C}
+.rnd.gray{background:var(--line)}
+.rc{background:var(--surface);border-radius:16px;padding:12px 14px;display:flex;gap:12px;align-items:center;text-align:left;width:100%}
+.rc .ic{width:36px;height:36px;border-radius:18px;background:var(--go);color:#07130C;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mark{align-self:center;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);background:var(--surface);border-radius:12px;padding:6px 12px}
+.mark svg{color:var(--go)}
+.kocard{align-self:stretch;background:#1B2440;border:1px solid #34406A;border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.kocard .k{font-size:11px;font-weight:700;letter-spacing:.08em;color:#AEB8FF}
+.kocard .ko{font-weight:700;font-size:15px}
+.kocard .en{font-size:12.5px;color:var(--muted)}
+.cam{width:46px;height:46px;border-radius:23px;background:var(--surface2);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#C9CDE0}
+.docchip{width:100%;display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center;text-align:left;background:var(--surface);border:1px dashed #4A5178;border-radius:16px;padding:12px 14px;margin-bottom:10px;font-size:15px;font-weight:600;color:var(--fg)}
+.docchip svg{grid-row:span 2;color:var(--accent)}
+.docchip span{font-size:12.5px;font-weight:400;color:var(--muted)}
+.prev{display:flex;align-items:center;gap:10px;padding-bottom:8px;font-size:12.5px;color:var(--muted)}
+.prev img{width:48px;height:48px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.prev span{flex:1;min-width:0}
+.prev button{width:32px;height:32px;border-radius:16px;background:var(--surface2)}
+.m.u.pic{padding:6px;background:var(--accent)}
+.m.u.pic img{display:block;max-width:140px;max-height:170px;border-radius:14px}
+.m.u.pic div{padding:6px 8px 2px}
+.doc{align-self:flex-start;width:88%;background:var(--surface2);border-radius:20px 20px 20px 6px;padding:14px;display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.45;animation:rise .3s ease-out both}
+.doc .k{font-size:11px;font-weight:700;letter-spacing:.08em;color:#AEB8FF}
+.doc h4{margin:2px 0 0;font-size:16px}
+.doc ol{margin:4px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.doc .due{display:inline-block;margin-top:6px;background:rgba(246,193,119,.16);color:var(--warn);border:1px solid rgba(246,193,119,.4);border-radius:10px;padding:4px 10px;font-weight:600;font-size:13px}
+.doc .w{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.doc .w span{background:var(--surface);border-radius:10px;padding:4px 8px;font-size:13px}
+.doc details{border-top:1px solid var(--line);padding-top:8px}
+.doc summary{cursor:pointer;color:#AEB8FF;font-weight:600;font-size:13.5px}
+.doc .tr{white-space:pre-wrap;margin-top:6px;color:#D9DCEB}
+.doc .chk{font-size:12.5px;color:#5C4210;background:#FFF1CF;border-radius:10px;padding:8px 10px}
+.dict{width:36px;height:36px;border-radius:18px;display:flex;align-items:center;justify-content:center;color:#C9CDE0;margin-right:4px;flex-shrink:0}
+.dict.on{background:var(--stop);color:#fff;animation:ring 1.4s infinite}
+.sumc{background:var(--surface);border-radius:20px;padding:14px;display:flex;flex-direction:column;gap:12px;animation:rise .3s ease-out both}
+.sumc .one-line{font-size:15px;line-height:1.45}
+.sumc .k{font-size:11px;font-weight:700;letter-spacing:.08em;color:#AEB8FF;margin-bottom:4px}
+.sumc .sec{border-top:1px solid var(--line);padding-top:10px;font-size:14px;line-height:1.45}
+.sumc ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:3px}
+.tick{display:flex;gap:10px;align-items:flex-start;padding:4px 0;cursor:pointer}
+.tick input{width:18px;height:18px;margin-top:1px;accent-color:var(--go);flex-shrink:0}
+.tick.done span{text-decoration:line-through;color:var(--muted)}
+.sayl{background:var(--surface2);border-radius:14px;padding:10px 12px;margin-top:6px}
+.sayl .ko{font-size:16px;font-weight:700}
+.sayl .en{font-size:13px;color:var(--muted);margin-top:2px}
+.sayl .b{display:flex;gap:8px;margin-top:8px}
+.sayl button{height:36px;padding:0 12px;border-radius:18px;font-size:13px;font-weight:600;background:var(--fg);color:#0E1120}
+.sayl button.g{background:var(--line);color:var(--fg)}
+.sumc .due{display:inline-block;background:rgba(246,193,119,.16);color:var(--warn);border:1px solid rgba(246,193,119,.4);border-radius:10px;padding:4px 10px;font-weight:600;font-size:13px}
+.sumc .chk{font-size:13px;color:#5C4210;background:#FFF1CF;border-radius:10px;padding:8px 10px}
+.sumc .w{display:flex;flex-wrap:wrap;gap:6px}
+.sumc .w span{background:var(--surface2);border-radius:10px;padding:4px 8px;font-size:13px}
+#lgSum{display:flex;flex-direction:column;gap:12px}
+.sumline{margin:2px 2px 0;font-size:16px;line-height:1.5;font-weight:500}
+.grp{background:var(--surface);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:8px;animation:rise .3s ease-out both}
+.gh{margin:0 0 2px;display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700}
+.gh svg{color:var(--accent);flex-shrink:0}
+.gk{font-size:12.5px;font-weight:600;color:var(--muted);margin-top:6px}
+.grp .tick{font-size:15px;padding:7px 0}
+.grp .tick input{width:22px;height:22px}
+.grp .steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px;font-size:15px;line-height:1.45}
+.grp .due{align-self:flex-start;background:rgba(246,193,119,.16);color:var(--warn);border:1px solid rgba(246,193,119,.4);border-radius:10px;padding:5px 12px;font-weight:700;font-size:14px}
+.grp .where{font-size:15px;line-height:1.45}
+.grp .sayl{background:var(--surface2);border-radius:16px;padding:12px 14px;margin-top:2px}
+.grp .sayl .gk{margin-top:0}
+.grp .sayl .ko{font-size:20px;line-height:1.4;font-weight:700;margin-top:4px}
+.grp .sayl .en{font-size:14px}
+.grp .sayl button{height:40px;padding:0 14px;border-radius:20px;font-size:14px}
+.grp .chk{font-size:14px;color:#5C4210;background:#FFF1CF;border-radius:12px;padding:10px 12px;line-height:1.45}
+.words{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:0 2px}
+.words .wl{font-size:12.5px;color:var(--muted);margin-right:4px}
+.words .wc{background:var(--surface);border-radius:10px;padding:5px 9px;font-size:13px}
+.organizing{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;background:var(--surface);border-radius:16px;padding:14px}
+.acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.act{background:var(--surface2);border-radius:16px;padding:10px 12px;display:flex;gap:8px;align-items:flex-start;text-align:left;font-size:14px;font-weight:600}
+.act svg{flex-shrink:0;margin-top:1px;color:var(--accent)}
+.act small{display:block;font-size:11.5px;font-weight:400;color:var(--muted);margin-top:2px}
+.full{background:var(--surface);border-radius:16px;padding:10px 14px}
+.full summary{cursor:pointer;font-size:13.5px;font-weight:600;color:#AEB8FF}
+.flines{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.fwrap{display:flex;flex-direction:column;gap:10px}
+.staff{position:absolute;inset:0;z-index:40;background:#FBFAF6;color:#141413;display:flex;align-items:center;justify-content:center;padding:0 22px}
+.staffin{display:flex;flex-direction:column;gap:18px;width:100%}
+.sk{font-size:13px;font-weight:700;letter-spacing:.06em;color:#6B6B66;text-transform:uppercase}
+.sko{font-size:34px;line-height:1.35;font-weight:700;word-break:keep-all}
+.sen{font-size:16px;color:#55554F;line-height:1.45}
+.sbtns{display:flex;gap:10px;margin-top:10px}
+.splay{flex:1;height:54px;border-radius:27px;background:#141413;color:#fff;font-size:16px;font-weight:600}
+.sclose{height:54px;padding:0 22px;border-radius:27px;border:1.5px solid #141413;font-size:16px;font-weight:600}
+.one{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty{font-size:13px;color:var(--muted);line-height:1.5}
+.engine{font-size:12.5px;line-height:1.5;color:var(--muted);display:flex;gap:8px;align-items:flex-start;margin-top:auto;padding-top:10px}
+.engine i{width:8px;height:8px;border-radius:4px;margin-top:5px;flex-shrink:0;background:var(--warn)}
+.engine.live i{background:var(--go)}
+
+/* call */
+.call{background:#000}
+.call>svg{position:absolute;inset:0;width:100%;height:100%}
+.ctop{position:absolute;z-index:2;top:58px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.lft{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.pill{display:flex;align-items:center;gap:8px;background:var(--glass);border-radius:20px;padding:8px 14px;font-size:14px;font-variant-numeric:tabular-nums;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.pill i{width:8px;height:8px;border-radius:4px;background:var(--go)}
+.pill .st{color:#C9CDE0;font-size:13px}
+.lang{font-size:12.5px;font-weight:500;padding:7px 12px}
+.ringing{position:absolute;inset:0;z-index:4;background:rgba(8,10,20,.8);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.ringing .av{width:120px;height:120px;animation:pulse 1.6s infinite}
+.ringing b{font-size:28px}
+.ringing span{color:#C9CDE0;font-size:15px}
+.bottom{position:absolute;z-index:2;left:0;right:0;bottom:0;padding-bottom:30px;display:flex;flex-direction:column;gap:12px}
+.caps{display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center}
+.cap{max-width:100%;background:rgba(0,0,0,.6);border-radius:12px;padding:8px 12px;font-size:17px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;word-break:keep-all}
+.cap.me{font-size:15px;color:#D9DCFF;background:rgba(40,46,90,.66)}
+.cap.old{opacity:.6;font-size:14px}
+.state{display:flex;justify-content:center}
+.modes{display:flex;flex-direction:column;gap:8px;align-items:center;animation:rise .3s ease-out both}
+.mode{min-width:240px;height:46px;padding:0 18px;border-radius:23px;background:rgba(243,244,249,.94);color:#0E1120;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px}
+.topics{display:flex;flex-direction:column;gap:8px;align-items:center;animation:rise .3s ease-out both}
+.trow{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;width:310px;max-width:100%}
+.trow .topic{width:150px;max-width:calc(50% - 4px);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.topic{justify-content:center;height:42px;padding:0 14px;border-radius:21px;background:rgba(243,244,249,.94);color:#0E1120;font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px}
+.topics .hint2,.modes .hint2{font-size:12px;color:#DADDEB;background:var(--glass);border-radius:10px;padding:4px 10px}
+.slist{display:flex;flex-direction:column;gap:8px;width:290px;max-width:100%}
+.sit{min-height:42px;padding:8px 16px;border-radius:21px;background:rgba(243,244,249,.94);color:#0E1120;font-size:14px;font-weight:600;text-align:center}
+.sit.else{background:rgba(24,28,46,.85);color:var(--fg);border:1px solid rgba(255,255,255,.3);font-weight:500}
+.sback{font-size:12.5px;color:#DADDEB;background:var(--glass);border-radius:12px;padding:6px 12px}
+.capen{font-size:13px;color:#C9CDE0;margin-top:2px}
+.state span{display:flex;align-items:center;gap:8px;font-size:13px;color:#DADDEB;background:var(--glass);border-radius:16px;padding:6px 12px}
+.bars{display:inline-flex;align-items:center;gap:3px;height:16px}
+.bars b{width:3px;border-radius:2px;background:var(--mint);animation:bar .9s infinite}
+.bars b:nth-child(2){animation-delay:.15s}.bars b:nth-child(3){animation-delay:.3s}.bars b:nth-child(4){animation-delay:.45s}
+.dots{display:inline-flex;gap:4px}
+.ctrls{display:flex;justify-content:center;align-items:center;gap:14px}
+.cb{width:52px;height:52px;border-radius:26px;background:rgba(46,52,80,.92);display:flex;align-items:center;justify-content:center}
+.cb.lit{background:var(--fg);color:#0E1120}
+.end{width:64px;height:64px;border-radius:32px;background:var(--stop);color:#fff;display:flex;align-items:center;justify-content:center}
+.typebar{display:flex;gap:8px}
+.typebar input{flex:1;min-width:0;height:46px;border-radius:23px;border:1px solid var(--line);background:rgba(24,28,46,.95);padding:0 16px;font-size:16px}
+.typebar button{height:46px;padding:0 16px;border-radius:23px;background:var(--accent);color:#0E1120;font-weight:600}
+.note{font-size:12.5px;line-height:1.45;color:#5C4210;background:#FFF1CF;border-radius:12px;padding:8px 12px}
+
+/* sheets */
+.sheet{position:absolute;inset:0;z-index:25;background:rgba(5,6,12,.7);display:flex;flex-direction:column;justify-content:flex-end}
+.sheet .inner{background:var(--surface);border-radius:26px 26px 0 0;padding-block:22px 30px;display:flex;flex-direction:column;gap:12px;max-height:88%;overflow-y:auto}
+.sheet h3{margin:0;font-size:20px}
+.ok{width:32px;height:32px;border-radius:16px;background:var(--go);color:#07130C;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.lbl{font-size:12px;font-weight:700;letter-spacing:.08em;color:#AEB8FF}
+.ex{background:var(--surface2);border-radius:14px;padding:10px 12px}
+.ex .ko{font-weight:700}.ex .en{font-size:13px;color:var(--muted);margin-top:2px}
+.line .w{font-size:12px;font-weight:700}
+.line .t{font-size:15px;line-height:1.5}
+label.field{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
+select,.field input{height:44px;border-radius:12px;background:var(--surface2);border:1px solid var(--line);padding:0 12px;font-size:15px;text-transform:none;letter-spacing:0;font-weight:400;width:100%}
+.hint{font-size:12px;color:var(--muted);line-height:1.5;text-transform:none;letter-spacing:0;font-weight:400}
+
+/* face */
+#head{transform-box:view-box;transform-origin:195px 430px;animation:breathe 4s ease-in-out infinite}
+#eyes{transform-box:fill-box;transform-origin:center;animation:blink 4.5s infinite}
+#pupils{transition:transform .3s}
+#mouth{transform-box:fill-box;transform-origin:center;transform:scaleY(.15);opacity:0}
+#smile{transition:opacity .2s}
+.talking #mouth{opacity:1;animation:talk .17s ease-in-out infinite alternate}
+.talking #smile{opacity:0}
+.listening #head{animation:nod 1.3s ease-in-out infinite}
+.thinking #head{animation:none;transform:rotate(-3deg)}
+.thinking #pupils{transform:translate(5px,-6px)}
+@keyframes talk{from{transform:scaleY(.2)}to{transform:scaleY(1)}}
+@keyframes blink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.08)}}
+@keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes nod{0%,100%{transform:rotate(0) translateY(0)}30%{transform:rotate(2deg) translateY(6px)}65%{transform:rotate(-1deg)}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,191,113,.5)}100%{box-shadow:0 0 0 28px rgba(47,191,113,0)}}
+@keyframes ring{0%{box-shadow:0 0 0 0 rgba(229,72,77,.45)}100%{box-shadow:0 0 0 18px rgba(229,72,77,0)}}
+@keyframes bar{0%,100%{height:4px}50%{height:16px}}
+@keyframes dot{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="stage">
+<div class="phone" id="phone">
+<div class="island" aria-hidden="true"></div>
+<div class="app">
+
+  <!-- WELCOME -->
+  <section class="screen welcome pad" id="welcome" hidden>
+    <div class="logo">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="11" cy="15" r="9" fill="none" stroke="#8C9BFF" stroke-width="3"></circle><circle cx="19" cy="15" r="9" fill="none" stroke="#2FBF71" stroke-width="3"></circle></svg>
+      Between <small>connecting</small>
+    </div>
+    <h1>A friend who has been where you are.</h1>
+    <p>Get practical help from a friend who has been through it, and handle everyday tasks in Korea on your own.</p>
+    <div style="flex:1"></div>
+    <div class="hb"><div class="av" style="width:48px;height:48px" data-hana></div><div class="bub">Hi, I'm Hana. Let's talk for a minute, and I'll make a friend just for you.</div></div>
+    <button class="big" id="wStart">Talk with Hana</button>
+    <button class="link" id="wConn">Connection settings</button>
+  </section>
+
+  <!-- HANA CHAT -->
+  <section class="screen" id="hana" hidden>
+    <div class="hdr pad">
+      <button class="back" id="hBack" aria-label="Back to contacts"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></button>
+      <div class="av" style="width:40px;height:40px" data-hana></div>
+      <div style="flex:1;min-width:0"><div class="nm" style="font-size:16px">Hana</div><div class="sub" id="hSub">Between guide · always here</div></div>
+    </div>
+    <div class="pad" id="hMiniWrap"><div class="mini"><div class="av" style="width:46px;height:46px" id="hMiniAv"></div><div class="t" id="hMini"></div></div></div>
+    <div class="msgs pad" id="hMsgs" aria-live="polite"></div>
+    <div class="chips pad" id="hChips"></div>
+    <form class="inbar pad" id="hForm">
+      <label class="inbox" for="hIn">
+        <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Message Hana</span>
+        <input id="hIn" type="text" placeholder="Message Hana" autocomplete="off">
+        <button class="send" type="submit" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></button>
+      </label>
+      <button class="hmic" type="button" id="hMic" aria-label="Talk to Hana"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"></path><path d="M19 11a7 7 0 0 1-14 0"></path><path d="M12 18v3"></path></svg></button>
+    </form>
+  </section>
+
+  <!-- MESSAGES WITH THE FRIEND -->
+  <section class="screen" id="chat" hidden>
+    <div class="hdr pad">
+      <button class="back" id="chBack" aria-label="Back to contacts"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></button>
+      <div class="av" style="width:40px;height:40px" id="chAv"></div>
+      <div style="flex:1;min-width:0"><div class="nm" style="font-size:16px"><span id="chName">Thu</span><span class="ai">AI</span></div><div class="sub">AI friend · replies anytime</div></div>
+      <button class="rnd go" id="chCall" aria-label="Video call" style="width:42px;height:42px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="3"></rect><path d="M16 10l5-3v10l-5-3z"></path></svg></button>
+    </div>
+    <div class="msgs pad" id="chMsgs" aria-live="polite"></div>
+    <div class="pad" id="chDocHint" hidden><button class="docchip" id="chDocChip" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>Read a document<span>Snap a school notice, bill or form</span></button></div>
+    <div class="pad prev" id="chPrev" hidden><img id="chPrevImg" alt="Selected document"><span>Photo ready. Add a question, or just send.</span><button type="button" id="chPrevX" aria-label="Remove photo">✕</button></div>
+    <form class="inbar pad" id="chForm">
+      <button class="cam" type="button" id="chCam" aria-label="Send a photo of a document"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg></button>
+      <input id="chFile" type="file" accept="image/*" hidden>
+      <label class="inbox" for="chIn">
+        <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Message</span>
+        <input id="chIn" type="text" placeholder="Message" autocomplete="off">
+        <button class="dict" type="button" id="chMic" aria-label="Speak instead of typing"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"></path><path d="M19 11a7 7 0 0 1-14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="send" type="submit" aria-label="Send" style="background:var(--accent);color:#0E1120"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></button>
+      </label>
+    </form>
+  </section>
+
+  <!-- CALL LOG: summary → actions → conversation → follow-up -->
+  <section class="screen" id="log" hidden>
+    <div class="hdr pad">
+      <button class="back" id="lgBack" aria-label="Back to contacts"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></button>
+      <div class="av" style="width:40px;height:40px" id="lgAv"></div>
+      <div style="flex:1;min-width:0"><div class="nm one" style="font-size:16px;display:block" id="lgName">Video call</div><div class="sub one" id="lgMeta"></div></div>
+      <button class="rnd go" id="lgCall" aria-label="Call back about this" style="width:42px;height:42px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="3"></rect><path d="M16 10l5-3v10l-5-3z"></path></svg></button>
+    </div>
+    <div class="msgs pad" id="lgBody">
+      <div id="lgSum"></div>
+      <details class="full" id="lgFull"><summary id="lgFullSum">Full conversation</summary><div id="lgLines" class="flines"></div></details>
+    </div>
+    <div class="acts pad" style="padding-top:12px;padding-bottom:28px;border-top:1px solid #222740">
+      <button class="act" id="lgPractice"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"></path><path d="M19 11a7 7 0 0 1-14 0"></path></svg><span>Practice this<small>Role-play on a video call</small></span></button>
+      <button class="act" id="lgFollowBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span>Ask a follow-up<small>Thu remembers this call</small></span></button>
+    </div>
+  </section>
+
+  <!-- FOLLOW-UP CHAT for one call -->
+  <section class="screen" id="fu" hidden>
+    <div class="hdr pad">
+      <button class="back" id="fuBack" aria-label="Back to call notes"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></button>
+      <div class="av" style="width:40px;height:40px" id="fuAv"></div>
+      <div style="flex:1;min-width:0"><div class="nm" style="font-size:16px" id="fuName">Follow-up</div><div class="sub one" id="fuSub"></div></div>
+    </div>
+    <div class="msgs pad" id="lgFollow"></div>
+    <div class="pad prev" id="lgPrev" hidden><img id="lgPrevImg" alt="Selected document"><span>Photo ready. Add a question, or just send.</span><button type="button" id="lgPrevX" aria-label="Remove photo">✕</button></div>
+    <form class="inbar pad" id="lgForm">
+      <button class="cam" type="button" id="lgCam" aria-label="Send a photo of a document"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg></button>
+      <input id="lgFile" type="file" accept="image/*" hidden>
+      <label class="inbox" for="lgIn">
+        <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Ask a follow-up</span>
+        <input id="lgIn" type="text" placeholder="Ask about this call…" autocomplete="off">
+        <button class="dict" type="button" id="lgMic" aria-label="Speak instead of typing"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"></path><path d="M19 11a7 7 0 0 1-14 0"></path><path d="M12 18v3"></path></svg></button>
+        <button class="send" type="submit" aria-label="Send" style="background:var(--accent);color:#0E1120"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg></button>
+      </label>
+    </form>
+  </section>
+
+  <!-- SHOW TO STAFF -->
+  <div class="staff" id="staff" hidden>
+    <div class="staffin">
+      <div class="sk">Please read · 읽어 주세요</div>
+      <div class="sko" id="staffKo" lang="ko"></div>
+      <div class="sen" id="staffEn"></div>
+      <div class="sbtns"><button class="splay" id="staffPlay">▶ Play aloud</button><button class="sclose" id="staffClose">Close</button></div>
+    </div>
+  </div>
+
+  <!-- MEET -->
+  <section class="screen" id="meet" hidden>
+    <div class="meetscroll pad">
+      <div class="mtop">
+        <div class="av" style="width:96px;height:96px" id="meetAv"></div>
+        <div class="mkick">Your new friend</div>
+        <h2 id="meetName">Thu</h2>
+        <div class="mid" id="meetId"></div>
+        <span class="mbadge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg>AI friend · fictional character</span>
+      </div>
+      <div class="helper" id="meetHelper" hidden></div>
+      <div class="mhead">Made from what you told Hana</div>
+      <div class="mrows" id="meetRows"></div>
+      <div class="official" id="meetOfficial" hidden>
+        <div class="mhead" style="margin:0;color:var(--mint)">Also here for you</div>
+        <div><b>1345</b> · Immigration Contact Center, in many languages</div>
+        <div><b>1577-1366</b> · Danuri helpline for multicultural families, 24 hours</div>
+        <div><b>가족센터</b> · your local Family Center</div>
+      </div>
+    </div>
+    <div class="meetbar pad"><button class="big green" id="meetSave">Save to contacts</button></div>
+  </section>
+
+  <!-- CONTACTS -->
+  <section class="screen contacts pad" id="contacts" hidden>
+    <div class="ch"><h1>Contacts</h1><button class="gear" id="gear" aria-label="Connection settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg></button></div>
+    <div class="sect">YOUR FRIEND</div>
+    <div class="row">
+      <button class="main" id="cMain">
+        <div class="av" style="width:60px;height:60px" id="cAv"></div>
+        <div style="min-width:0"><div class="nm"><span id="cName">Thu</span><span class="ai">AI</span></div><div class="sub one" id="cSub"></div></div>
+      </button>
+      <button class="rnd gray" id="msgBtn" aria-label="Message"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg></button>
+      <button class="rnd go" id="callBtn" aria-label="Video call"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="3"></rect><path d="M16 10l5-3v10l-5-3z"></path></svg></button>
+    </div>
+    <div class="sect">BETWEEN GUIDE</div>
+    <div class="row">
+      <button class="main" id="hanaBtn">
+        <div class="av" style="width:52px;height:52px" data-hana></div>
+        <div style="min-width:0"><div class="nm">Hana</div><div class="sub">Talk to change your friend, or ask for help</div></div>
+      </button>
+      <button class="rnd gray" id="hanaBtn2" aria-label="Message Hana"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg></button>
+    </div>
+    <div class="sect">RECENT CALLS</div>
+    <div id="recent" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="engine" id="engine"><i></i><span>Checking how to reach Claude…</span></div>
+  </section>
+
+  <!-- CALL -->
+  <section class="screen call" id="call" hidden>
+    <svg id="face" viewBox="0 0 390 844" preserveAspectRatio="xMidYMin slice" aria-hidden="true"></svg>
+    <div class="ctop">
+      <div class="lft">
+        <div class="pill"><i id="liveDot"></i><span id="kName">Thu</span><span class="st" id="timer"></span></div>
+        <button class="pill lang" id="langBtn" aria-label="Language you speak">You speak: <b id="langLabel">한국어</b></button>
+      </div>
+    </div>
+    <div class="bottom pad">
+      <div class="caps" id="caps" aria-live="polite"></div>
+      <div class="topics" id="topics" hidden>
+        <div class="trow" id="topicRow">
+        </div>
+        <span class="hint2">Or just ask out loud</span>
+      </div>
+      <div class="topics" id="sitPick" hidden>
+        <span class="hint2" id="sitTitle"></span>
+        <div class="slist" id="sitRow"></div>
+        <button class="sback" id="sitBack">‹ Other places</button>
+      </div>
+      <div class="topics" id="schoolPick" hidden>
+        <span class="hint2">Is it about your child's school or your own studies?</span>
+        <div class="trow">
+          <button class="topic" data-school="child">For my child</button>
+          <button class="topic" data-school="me">For me (student)</button>
+        </div>
+        <span class="hint2">Or just ask out loud</span>
+      </div>
+      <div class="state" id="state"></div>
+      <div class="note" id="note" hidden></div>
+      <form class="typebar" id="typebar" hidden>
+        <label for="msg" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Message</label>
+        <input id="msg" type="text" placeholder="Type to talk…" autocomplete="off">
+        <button type="submit">Send</button>
+      </form>
+      <div class="ctrls">
+        <button class="cb lit" id="ccBtn" aria-label="Captions" aria-pressed="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"></rect><path d="M7 12h4M13 12h4M7 15h7"></path></svg></button>
+        <button class="cb" id="topicBtn" aria-label="Show topics" aria-pressed="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"></rect><rect x="13" y="4" width="7" height="7" rx="2"></rect><rect x="4" y="13" width="7" height="7" rx="2"></rect><rect x="13" y="13" width="7" height="7" rx="2"></rect></svg></button>
+        <button class="cb" id="muteBtn" aria-label="Mute and type" aria-pressed="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"></path><path d="M19 11a7 7 0 0 1-14 0"></path><path d="M12 18v3"></path><path id="slash" d="M4 4l16 16" stroke-width="2.4" hidden></path></svg></button>
+        <button class="end" id="endBtn" aria-label="End call"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 14c5-5 13-5 18 0l-2.5 2.5-3.5-1.5v-2.4a10 10 0 0 0-6 0V15l-3.5 1.5z"></path></svg></button>
+      </div>
+    </div>
+    <div class="ringing" id="ringing"><div class="av" id="avR"></div><b id="ringName">Thu</b><span id="ringSt">Calling…</span></div>
+  </section>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <!-- CONNECTION (presenter only) -->
+  <div class="sheet" id="connSheet" hidden>
+    <div class="inner pad">
+      <h3>Connection settings</h3>
+      <div class="hint" id="connInfo"></div>
+      <div id="keyBlock" style="display:flex;flex-direction:column;gap:12px">
+        <label class="field" for="sKey">Anthropic API key
+          <input id="sKey" type="password" placeholder="sk-ant-…" autocomplete="off">
+          <span class="hint">The key stays in this browser only. Use a demo key and delete it after the presentation.</span>
+        </label>
+        <label class="field" for="sModel">Model<select id="sModel"><option value="claude-haiku-5-5">Claude Haiku 5.5 (fastest)</option><option value="claude-sonnet-5-5">Claude Sonnet 5.5</option></select></label>
+      </div>
+      <button class="big" id="connSave">Save</button>
+      <button class="ghost" id="resetBtn">Restart the demo from the beginning</button>
+    </div>
+  </div>
+
+</div>
+</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* ---------- fit the phone to the screen ---------- */
+  function fit(){
+    var bare = window.innerWidth < 520;
+    document.documentElement.classList.toggle("bare", bare);
+    $("phone").style.transform = bare ? "" : "scale(" + Math.min(1, (window.innerHeight - 32) / 868, (window.innerWidth - 32) / 414) + ")";
+  }
+  window.addEventListener("resize", fit); fit();
+
+  /* ---------- state ---------- */
+  var LOOKS = {teal:"#2F6F6A", sage:"#7C9471", navy:"#3E4F73", rust:"#A7563B", plum:"#7A4E73"};
+  var SKIN = {porcelain:"#F6DDCC", light:"#F1CDB4", fair:"#E9C09E", olive:"#D2A57E", tan:"#B57E55", brown:"#8F5B3B", deep:"#653D27"};
+  var HAIR = {black:"#1E1614", darkbrown:"#2F1E17", brown:"#5A3A26", blonde:"#C9A25C", red:"#8E3B1F", gray:"#9A9AA2"};
+  var STYLES = {curly:1, bob:1, long:1, bun:1, wavy:1};
+  var EYES = {round:[283, 319, 280, 1], almond:[287, 315, 284, 1], monolid:[292, 312, 289, 0]};
+  var FACES = {
+    oval:"M195 176 C255 176 285 232 283 300 C281 370 246 420 195 424 C144 420 109 370 107 300 C105 232 135 176 195 176Z",
+    round:"M195 180 C262 180 292 236 290 304 C288 368 252 414 195 418 C138 414 102 368 100 304 C98 236 128 180 195 180Z",
+    long:"M195 170 C250 170 279 228 278 300 C277 380 244 434 195 438 C146 434 113 380 112 300 C111 228 140 170 195 170Z",
+    square:"M195 176 C258 176 288 230 287 300 C286 362 268 408 228 420 C214 424 205 425 195 425 C185 425 176 424 162 420 C122 408 104 362 103 300 C102 230 132 176 195 176Z",
+    heart:"M195 176 C264 176 292 228 288 290 C284 356 238 416 195 428 C152 416 106 356 102 290 C98 228 126 176 195 176Z"
+  };
+  var NOSES = {narrow:9, medium:13, wide:18};
+  var LIPS = {thin:.7, medium:1, full:1.45};
+  var BROWS = {thin:[5, 265], medium:[7, 265], thick:[10, 268], straight:[8, 274]};
+  var ROLES = {parent:1, student:1, both:1, other:1};
+  /* Before onboarding there is no friend: every field below is filled from the conversation with Hana. */
+  var DEFAULT_P = {name:"", country:"", lang:"", voice:"", look:"teal", skin:"fair", hair:"black", style:"bob",
+    hard:"", tone:"warm and casual, like a close friend", talk:"mostly English with easy Korean phrases", about:"", user:""};
+  var FIELDS = ["name","country","lang","voice","look","skin","hair","style","eyes","face","nose","lips","brows","hard","tone","talk","about","user","greetLine","role","helper","alone"];
+  var S = {created:false, p:JSON.parse(JSON.stringify(DEFAULT_P)), chat:[], calls:[], mic:"ko", apiKey:"", model:"claude-haiku-5-5"};
+  try { var sv = JSON.parse(localStorage.getItem("ieum-live6") || "null"); if (sv) { for (var k in sv) if (k in S) S[k] = sv[k]; S.p = Object.assign({}, DEFAULT_P, S.p || {}); } } catch(e) {}
+  function store(){ try { localStorage.setItem("ieum-live6", JSON.stringify(S)); } catch(e) {} }
+
+  /* ---------- characters: a cozy room, a cardigan, a warm face (style of the reference images) ---------- */
+  var HANA = {cardigan:"#3E4F73", skin:"#EBC3A3", hair:"#1E1614", style:"bun"};
+  function friendLook(){ var p = S.p; return {cardigan:LOOKS[p.look] || LOOKS.teal, skin:SKIN[p.skin] || SKIN.fair, hair:HAIR[p.hair] || HAIR.black, style:STYLES[p.style] ? p.style : "bob", eyes:EYES[p.eyes] ? p.eyes : "almond", face:p.face, nose:p.nose, lips:p.lips, brows:p.brows}; }
+  function shade(hex, amt){
+    var n = parseInt(hex.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    c = c.map(function(v){ return Math.max(0, Math.min(255, Math.round(amt < 0 ? v * (1 + amt) : v + (255 - v) * amt))); });
+    return "#" + ((1 << 24) | (c[0] << 16) | (c[1] << 8) | c[2]).toString(16).slice(1);
+  }
+  function curls(cx, cy, rx, ry, a0, a1, n, r0, fill){
+    var s = "";
+    for (var i = 0; i < n; i++) {
+      var t = a0 + (a1 - a0) * i / (n - 1), x = cx + rx * Math.cos(t), y = cy + ry * Math.sin(t), r = r0 + ((i * 37) % 7);
+      s += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r + '" fill="' + fill + '"></circle>';
+    }
+    return s;
+  }
+  function leaves(){
+    var L = [[52,118,-30],[70,132,25],[46,160,-40],[66,182,30],[52,212,-25],[74,238,35],[56,268,-30],[72,300,20],[58,334,-35],[80,128,60],[38,190,-60]], s = "";
+    L.forEach(function(l, i){ s += '<ellipse cx="' + l[0] + '" cy="' + l[1] + '" rx="15" ry="9" transform="rotate(' + l[2] + ' ' + l[0] + ' ' + l[1] + ')" fill="' + (i % 2 ? "#7FAE63" : "#5E8F4C") + '"></ellipse>'; });
+    return '<path d="M62 104 C60 160 72 220 60 340" stroke="#5E8F4C" stroke-width="2" fill="none"></path>' + s;
+  }
+  function books(x, base){
+    var C = ["#5E7A99","#E8E1D4","#C9775A","#88A38A","#D9CDB8","#3F4E66"], s = "", W = [14,12,16,12,15,13];
+    for (var i = 0; i < 6; i++) { var h = 38 + ((i * 13) % 14); s += '<rect x="' + x + '" y="' + (base - h) + '" width="' + W[i] + '" height="' + h + '" rx="2" fill="' + C[i] + '"></rect>'; x += W[i] + 2; }
+    return s;
+  }
+  var uid = 0;
+  function faceMarkup(o, live){
+    var p = "q" + (++uid), A = function(n){ return live ? ' id="' + n + '"' : ""; };
+    var skin = o.skin, sk1 = shade(skin, .14), sk2 = shade(skin, -.16), sk3 = shade(skin, -.3), hair = o.hair, hl = shade(hair, .14);
+    var cg = o.cardigan, cg2 = shade(cg, -.22), cg3 = shade(cg, .12), lip = shade(skin, -.36), lip2 = shade(lip, .15), st = o.style;
+    var E = EYES[o.eyes] || EYES.almond, eT = E[0], eB = E[1], eL = E[2], crease = E[3];
+    var FP = FACES[o.face] || FACES.oval, nw = NOSES[o.nose] || NOSES.medium, lf = LIPS[o.lips] || LIPS.medium, BR = BROWS[o.brows] || BROWS.medium;
+    var lw = 25 + (lf > 1 ? 3 : 0), lt = 374 - 6 * lf, lb = 375 + 17 * lf, lm = 375 + 11 * lf;
+    var eyeL = "M136 303Q158 " + eT + " 180 303Q158 " + eB + " 136 303Z", eyeR = "M210 303Q232 " + eT + " 254 303Q232 " + eB + " 210 303Z";
+    var back = "", front = "";
+    if (st === "curly") {
+      back = '<ellipse cx="195" cy="258" rx="116" ry="110" fill="' + hair + '"></ellipse>' + curls(195, 258, 112, 106, Math.PI * .8, Math.PI * 2.2, 16, 20, hair);
+      front = '<path d="M112 292 C110 220 150 186 195 186 C240 186 280 220 278 292 C260 248 232 228 195 228 C158 228 130 248 112 292Z" fill="' + hair + '"></path>' + curls(195, 262, 86, 60, Math.PI * 1.08, Math.PI * 1.92, 11, 15, hair);
+    } else if (st === "bun") {
+      back = '<circle cx="195" cy="150" r="40" fill="' + hair + '"></circle><path d="M175 140 q20 -18 40 0" stroke="' + hl + '" stroke-width="3" fill="none"></path><path d="M100 300 C94 205 140 166 195 166 C250 166 296 205 290 300Z" fill="' + hair + '"></path>';
+      front = '<path d="M110 290 C108 214 150 180 195 180 C240 180 282 214 280 290 C262 244 230 222 195 222 C160 222 128 244 110 290Z" fill="' + hair + '"></path><path d="M150 196 Q195 184 240 196" stroke="' + hl + '" stroke-width="3" fill="none"></path>';
+    } else {
+      var longBack = '<path d="M86 300 C78 185 140 146 195 146 C250 146 312 185 304 300 C306 400 316 500 322 590 L68 590 C74 500 84 400 86 300Z" fill="' + hair + '"></path>';
+      var bobBack = '<path d="M86 300 C78 188 140 148 195 148 C250 148 312 188 304 300 C304 350 306 392 296 418 L94 418 C84 392 86 350 86 300Z" fill="' + hair + '"></path>';
+      back = st === "long" ? longBack : st === "wavy" ? longBack + curls(195, 560, 120, 18, Math.PI * .05, Math.PI * .95, 8, 18, hair) : bobBack;
+      front = '<path d="M96 338 C82 214 136 158 200 160 C266 162 306 220 295 324 C280 258 254 226 214 214 C184 238 138 256 96 338Z" fill="' + hair + '"></path>' +
+        '<path d="M222 200 C258 210 286 242 298 292" stroke="' + hl + '" stroke-width="4" fill="none" opacity=".7"></path>' +
+        (st === "wavy" ? '<path d="M96 338 q-10 30 4 56 q-14 26 0 54" stroke="' + hair + '" stroke-width="16" fill="none" stroke-linecap="round"></path><path d="M295 324 q12 30 -2 58 q14 26 0 54" stroke="' + hair + '" stroke-width="16" fill="none" stroke-linecap="round"></path>' : "");
+    }
+    var room = '<defs>' +
+        '<radialGradient id="' + p + 'f" cx="46%" cy="40%" r="62%"><stop offset="0" stop-color="' + sk1 + '"></stop><stop offset=".75" stop-color="' + skin + '"></stop><stop offset="1" stop-color="' + sk2 + '"></stop></radialGradient>' +
+        '<radialGradient id="' + p + 's" cx="8%" cy="28%" r="70%"><stop offset="0" stop-color="#FFF6E2" stop-opacity=".95"></stop><stop offset="1" stop-color="#FFF6E2" stop-opacity="0"></stop></radialGradient>' +
+        '<linearGradient id="' + p + 'c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + cg3 + '"></stop><stop offset="1" stop-color="' + cg + '"></stop></linearGradient>' +
+        '<clipPath id="' + p + 'l"><path d="' + eyeL + '"></path></clipPath>' +
+        '<clipPath id="' + p + 'r"><path d="' + eyeR + '"></path></clipPath>' +
+      '</defs>' +
+      '<rect width="390" height="844" fill="#EDE3D8"></rect>' +
+      '<rect x="-10" y="40" width="122" height="580" rx="6" fill="#E2D5C3"></rect><rect x="0" y="52" width="100" height="556" fill="#FBF6EC"></rect><path d="M50 52v556M0 330h100" stroke="#E2D5C3" stroke-width="6"></path>' +
+      '<path d="M40 70 h56 l-6 36 h-44z" fill="#EFE7DC"></path>' + leaves() +
+      '<rect x="246" y="66" width="136" height="156" rx="4" fill="#C9A47C"></rect><rect x="254" y="74" width="120" height="140" fill="#DCE6EC"></rect>' +
+      '<path d="M254 186 Q286 150 316 176 Q346 150 374 182 V214 H254Z" fill="#9FB0B4"></path><path d="M326 172 V118 M319 130 h14 M322 120 h8" stroke="#6F7E89" stroke-width="3"></path>' +
+      '<ellipse cx="356" cy="352" rx="46" ry="46" fill="#FFE6B8" opacity=".5"></ellipse><path d="M338 334 h36 l-7 -28 h-22z" fill="#F4E5CA"></path><rect x="352" y="334" width="6" height="40" fill="#D9C6A6"></rect>' +
+      books(296, 398) + '<rect x="290" y="398" width="110" height="10" fill="#C9A47C"></rect>' +
+      books(300, 520) + '<circle cx="372" cy="498" r="20" fill="#B9C9B0"></circle><rect x="290" y="520" width="110" height="10" fill="#C9A47C"></rect><rect x="290" y="398" width="8" height="330" fill="#B8936A"></rect>' +
+      '<rect width="390" height="844" fill="url(#' + p + 's)"></rect>' +
+      '<rect x="64" y="560" width="262" height="240" rx="74" fill="#E4DACE"></rect>';
+    var person = '<g transform="translate(195 400) scale(1.17) translate(-195 -400)"><g' + A("head") + '>' + back +
+      '<g transform="translate(0 -78)"><path d="M162 420 L162 572 L228 572 L228 420Z" fill="' + skin + '"></path>' +
+      '<ellipse cx="195" cy="430" rx="34" ry="12" fill="' + sk3 + '" opacity=".35"></ellipse>' +
+      '<path d="M120 960 L120 566 C150 560 172 566 195 572 C218 566 240 560 270 566 L270 960Z" fill="#F2E8D8"></path>' +
+      '<path d="M-30 960 L-30 660 C-22 618 20 596 86 586 C116 580 140 572 160 562 L176 960Z" fill="url(#' + p + 'c)"></path>' +
+      '<path d="M420 960 L420 660 C412 618 370 596 304 586 C274 580 250 572 230 562 L214 960Z" fill="url(#' + p + 'c)"></path>' +
+      '<path d="M152 564 C162 650 168 740 172 960" stroke="' + cg2 + '" stroke-width="26" fill="none"></path>' +
+      '<path d="M238 564 C228 650 222 740 218 960" stroke="' + cg2 + '" stroke-width="26" fill="none"></path>' +
+      '<path d="M150 560 C160 650 166 744 170 960 M240 560 C230 650 224 744 220 960" stroke="' + shade(cg2, .15) + '" stroke-width="2" stroke-dasharray="3 5" fill="none"></path>' +
+      '<path d="M40 720 C48 670 70 630 96 612" stroke="' + cg2 + '" stroke-width="3" fill="none" opacity=".5"></path><path d="M350 720 C342 670 320 630 294 612" stroke="' + cg2 + '" stroke-width="3" fill="none" opacity=".5"></path></g>' +
+      '<ellipse cx="108" cy="318" rx="12" ry="22" fill="' + sk2 + '"></ellipse><ellipse cx="282" cy="318" rx="12" ry="22" fill="' + sk2 + '"></ellipse>' +
+      '<circle cx="106" cy="350" r="9" stroke="#D4A64A" stroke-width="4" fill="none"></circle><circle cx="284" cy="350" r="9" stroke="#D4A64A" stroke-width="4" fill="none"></circle>' +
+      '<path d="' + FP + '" fill="url(#' + p + 'f)"></path>' +
+      '<path d="M134 280 Q156 ' + BR[1] + ' 182 275" stroke="' + shade(hair, .1) + '" stroke-width="' + BR[0] + '" stroke-linecap="round" fill="none"></path>' +
+      '<path d="M208 275 Q234 ' + BR[1] + ' 256 280" stroke="' + shade(hair, .1) + '" stroke-width="' + BR[0] + '" stroke-linecap="round" fill="none"></path>' +
+      (crease ? '<path d="M139 296 Q158 ' + (eT - 6) + ' 179 294" stroke="' + sk3 + '" stroke-width="2" fill="none" opacity=".45"></path><path d="M211 294 Q232 ' + (eT - 6) + ' 251 296" stroke="' + sk3 + '" stroke-width="2" fill="none" opacity=".45"></path>' : '') +
+      '<g' + A("eyes") + '>' +
+        '<path d="' + eyeL + '" fill="#FBF8F4"></path><path d="' + eyeR + '" fill="#FBF8F4"></path>' +
+        '<g' + A("pupils") + '>' +
+          '<g clip-path="url(#' + p + 'l)"><circle cx="158" cy="302" r="9.5" fill="#4A2E1E"></circle><circle cx="158" cy="302" r="4.5" fill="#120B08"></circle><circle cx="161" cy="298.5" r="2.6" fill="#fff"></circle></g>' +
+          '<g clip-path="url(#' + p + 'r)"><circle cx="232" cy="302" r="9.5" fill="#4A2E1E"></circle><circle cx="232" cy="302" r="4.5" fill="#120B08"></circle><circle cx="235" cy="298.5" r="2.6" fill="#fff"></circle></g>' +
+        '</g>' +
+        '<path d="M134 303Q158 ' + eL + ' 182 302" stroke="#2A1A14" stroke-width="3" fill="none" stroke-linecap="round"></path><path d="M208 302Q232 ' + eL + ' 256 303" stroke="#2A1A14" stroke-width="3" fill="none" stroke-linecap="round"></path>' +
+      '</g>' +
+      '<path d="M140 316 Q158 322 176 316" stroke="' + sk2 + '" stroke-width="2" fill="none" opacity=".6"></path><path d="M214 316 Q232 322 250 316" stroke="' + sk2 + '" stroke-width="2" fill="none" opacity=".6"></path>' +
+      '<ellipse cx="146" cy="346" rx="20" ry="12" fill="#E07B6F" opacity=".16"></ellipse><ellipse cx="244" cy="346" rx="20" ry="12" fill="#E07B6F" opacity=".16"></ellipse>' +
+      '<path d="M197 308 Q192 336 186 346" stroke="' + sk3 + '" stroke-width="3" fill="none" stroke-linecap="round" opacity=".45"></path>' +
+      '<path d="M' + (195 - nw) + ' 350 Q' + (195 - nw + 6) + ' 356 195 354 Q' + (195 + nw - 6) + ' 356 ' + (195 + nw) + ' 350" stroke="' + sk3 + '" stroke-width="3" fill="none" stroke-linecap="round" opacity=".6"></path>' +
+      (nw > 12 ? '<path d="M' + (195 - nw) + ' 350 q-4 -7 2 -12 M' + (195 + nw) + ' 350 q4 -7 -2 -12" stroke="' + sk3 + '" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".45"></path>' : '') +
+      '<g' + A("smile") + '><path d="M' + (195 - lw) + ' 374 Q182 ' + lt + ' 195 ' + (lt + 3) + ' Q208 ' + lt + ' ' + (195 + lw) + ' 374 Q208 380 195 379 Q182 380 ' + (195 - lw) + ' 374Z" fill="' + lip + '"></path><path d="M' + (197 - lw) + ' 375 Q195 ' + lb + ' ' + (193 + lw) + ' 375 Q195 ' + lm + ' ' + (197 - lw) + ' 375Z" fill="' + lip2 + '"></path><path d="M' + (191 - lw) + ' 372 Q' + (195 - lw) + ' 376 ' + (197 - lw) + ' 375 M' + (199 + lw) + ' 372 Q' + (195 + lw) + ' 376 ' + (193 + lw) + ' 375" stroke="' + sk3 + '" stroke-width="2" fill="none" opacity=".5"></path></g>' +
+      (live ? '<g' + A("mouth") + '><ellipse cx="195" cy="378" rx="19" ry="12" fill="#4E1F1F" stroke="' + lip + '" stroke-width="5"></ellipse><rect x="182" y="368" width="26" height="5" rx="2" fill="#F6F1EA"></rect></g>' : '') +
+      front + '</g></g>';
+    return room + person;
+  }
+  function portrait(o){ return '<svg viewBox="62 130 266 266" aria-hidden="true">' + faceMarkup(o, false) + '</svg>'; }
+  function paintHana(){ document.querySelectorAll("[data-hana]").forEach(function(el){ el.innerHTML = portrait(HANA); }); }
+  paintHana();
+
+  /* ---------- screens ---------- */
+  var SCREENS = ["welcome","hana","meet","contacts","call","chat","log","fu"];
+  function show(id){ SCREENS.forEach(function(s){ $(s).hidden = s !== id; }); }
+  function toast(t){ $("toast").textContent = t; $("toast").hidden = false; clearTimeout(toast.t); toast.t = setTimeout(function(){ $("toast").hidden = true; }, 2600); }
+
+  /* ---------- reaching Claude ---------- */
+  var sampleFn = null, checked = false;
+  function connected(){ return !!sampleFn || !!S.apiKey; }
+  function setEngine(){
+    var el = $("engine"), sp = el.querySelector("span");
+    el.classList.toggle("live", connected());
+    sp.textContent = sampleFn ? "Connected through your Claude account." : S.apiKey ? "Connected with an API key." : checked ? "Not connected to Claude. Tap the gear to add an API key." : "Checking how to reach Claude…";
+    $("keyBlock").hidden = !!sampleFn;
+    $("connInfo").textContent = sampleFn ? "This page is open inside claude.ai, so it uses your Claude account. No key is needed here. Voice uses claude.ai dictation when your browser supports it." : "Outside claude.ai, Between needs an Anthropic API key to talk.";
+  }
+  if (window.claude && typeof window.claude.use === "function") {
+    window.claude.use("sample").then(function(fn){ sampleFn = fn || null; checked = true; setEngine(); }, function(){ checked = true; setEngine(); });
+  } else checked = true;
+
+  /* claude.ai dictation: the platform holds the mic and hands this page the words */
+  var dict = null, dTarget = null, dBuf = "", dTimer = null, speakEndAt = 0;
+  if (window.claude && typeof window.claude.use === "function") {
+    window.claude.use("dictation").then(function(d){ dict = d || null; if (dict) wireDict(); }, function(){});
+  }
+  function dStart(){ if (!dict) return; try { dict.start().catch(function(){ if (dTarget && dTarget.btn) dTarget.btn.classList.remove("on"); if (dTarget === "call" && on && !busy && !speaking) state(""); }); } catch(e) {} }
+  function dStop(){ if (dict) { try { dict.stop().catch(function(){}); } catch(e) {} } }
+  function callAccepting(){ return on && !busy && !speaking && !muted && !typing && $("ringing").hidden && Date.now() - speakEndAt > 700; }
+  function armSend(){ clearTimeout(dTimer); dTimer = setTimeout(function(){ var t = dBuf.trim(); dBuf = ""; interim = ""; if (t && callAccepting()) send(t); else renderCaps(); }, 1400); }
+  function wireDict(){
+    dict.onPartial(function(e){
+      if (dTarget === "call") { if (!callAccepting()) return; interim = (dBuf + e.text).trim(); renderCaps(); if (e.text) armSend(); }
+      else if (dTarget && dTarget.input) dTarget.input.value = (dTarget.base + dBuf + e.text).replace(/^\s+/, "");
+    });
+    dict.onFinal(function(e){
+      if (dTarget === "call") { if (!callAccepting()) return; dBuf += e.text; interim = dBuf.trim(); renderCaps(); armSend(); }
+      else if (dTarget && dTarget.input) { dBuf += e.text; dTarget.input.value = (dTarget.base + dBuf).replace(/^\s+/, ""); }
+    });
+    dict.onState(function(e){
+      if (dTarget && dTarget.btn) {
+        dTarget.btn.classList.toggle("on", e.state !== "idle");
+        if (e.state === "idle") { var t = dTarget; dTarget = null; dBuf = ""; if (t.onDone) t.onDone(); }
+      }
+      if (dTarget === "call" && on && e.state === "listening" && callAccepting()) { state("listen"); face("listening"); }
+    });
+  }
+  function dTap(btn, input, onDone){
+    if (btn.classList.contains("on")) { dStop(); return; }
+    dTarget = {btn:btn, input:input, base: input.value ? input.value.replace(/\s*$/, " ") : "", onDone:onDone}; dBuf = ""; btn.classList.add("on"); dStart();
+  }
+
+  function parseJSON(text){
+    var t = String(text || "").trim(), m = t.match(/```(?:json)?\s*([\s\S]*?)```/); if (m) t = m[1];
+    var a = t.indexOf("{"), b = t.lastIndexOf("}");
+    if (a >= 0 && b > a) { try { return JSON.parse(t.slice(a, b + 1)); } catch(e) {} }
+    return {say:String(text || "")};
+  }
+  var ctl = null;
+  function withImage(msgs, dataUrl){
+    var out = msgs.slice(), last = out[out.length - 1];
+    out[out.length - 1] = {role:"user", content:[{type:"image", source:{type:"base64", media_type:"image/jpeg", data:dataUrl.split(",")[1]}}, {type:"text", text:last.content}]};
+    return out;
+  }
+  function ask(system, msgs, opts){
+    opts = opts || {}; ctl = new AbortController();
+    if (sampleFn) {
+      var input = [{role:"user", content: system}].concat(msgs);
+      var o = {modelTier:"quick", cache:false, signal: ctl.signal};
+      if (opts.blob) { o.images = opts.blob; delete o.modelTier; }
+      if (opts.json) return sampleFn.json(input, o);
+      if (opts.onText) o.onText = function(u){ opts.onText(u.text); };
+      return sampleFn(input, o).then(function(r){ return r.text; });
+    }
+    if (S.apiKey) {
+      return fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST", signal: ctl.signal,
+        headers:{"content-type":"application/json","x-api-key":S.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body: JSON.stringify({model:S.model, max_tokens: opts.image ? 2000 : 700, system:system, messages: opts.image ? withImage(msgs, opts.image) : msgs})
+      }).then(function(r){
+        return r.json().then(function(j){
+          if (!r.ok) throw {code:"api", message:(j && j.error && j.error.message) || ("HTTP " + r.status)};
+          var text = (j.content || []).filter(function(c){ return c.type === "text"; }).map(function(c){ return c.text; }).join("").trim();
+          return opts.json ? parseJSON(text) : text;
+        });
+      });
+    }
+    return Promise.reject({code:"no_engine"});
+  }
+  function errorCopy(e){
+    var c = e && e.code;
+    if (c === "no_engine") return "Between isn't connected to Claude yet. Open Connection settings (the gear on Contacts) and add an API key.";
+    if (c === "not_granted" || c === "sampling_disabled") return "Claude isn't allowed on this page. Allow it when asked, or use the downloaded file with an API key.";
+    if (c === "rate_limited") return "Too many messages for now. Wait a moment, then try again.";
+    if (c === "session_expired") return "Your claude.ai session expired. Sign in again.";
+    if (c === "api") return "The API said: " + e.message;
+    if (c === "cancelled") return "";
+    return "The connection dropped for a moment. Try again.";
+  }
+
+  /* ---------- speech recognition helper ---------- */
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  function micLang(){ return S.mic === "en" ? "en-US" : S.mic === "home" ? (S.p.voice || "en-US") : "ko-KR"; }
+  function micLabel(){ return S.mic === "en" ? "English" : S.mic === "home" ? (S.p.lang || "Home language") : "한국어"; }
+
+  /* ======================= HANA ======================= */
+  var hMode = "settings", hHist = [], hBusy = false;
+  function hanaRules(){
+    var cur = JSON.stringify(S.p);
+    var common = "You are Hana, the friendly built-in guide of Between, an app that gives immigrant parents in South Korea an AI friend (a fictional peer mentor). You are always available in the app and you work only through conversation. " +
+      "Speak simple, warm English with a little easy Korean (for example 반가워요, 좋아요). If the user writes in Korean or another language, answer in that language. Keep each message to one to three short sentences and ask one thing at a time.\n" +
+      (hMode === "onboard" ? "" : "Current friend profile (JSON): " + cur + "\n");
+    var mode = hMode === "onboard"
+      ? "This is the user's first time and no friend exists yet. Through a short, natural conversation, learn: where they are from and their home language, how long they have lived in Korea, what they do in Korea (for example working, studying, or staying at home), whether they have children and how old they are, which places they go to often in daily life where Korean gets hard (ask this as one question and include 'pick' so they can choose up to 4 places; if they also mention what is hard there, remember it), and who they usually ask for help. React kindly to each answer before the next question. Ask about what they do and about children as two separate questions, never in one question. Skip anything the user already told you. Any country is fine. Once you have those answers (usually after six or seven), set done to true and say you will now make their friend. Leave changes empty during this conversation; the friend is built in a separate step.\n"
+      : "The user already has the friend above. Help them change anything about her through conversation: name, background, how she talks, how much Korean she uses, what she helps with, her look, extra details, or things she should know about the user. After a change, confirm it in plain words. Changes apply right away and chats and call history stay. If the user asks something else, answer briefly and kindly; for everyday questions remind them their friend can help on a call. done is always false here.\n";
+    return common + mode +
+      "Reply with ONLY one JSON object: {\"say\": string, \"changes\": object with only the fields to change (or {}), \"done\": boolean, \"options\": array of up to 3 short quick replies the user might tap next, written as the user would say them, \"pick\": only when asking which places the user goes to often: {\"options\": 8 to 10 short place names fitted to this user (for example Hospital, Bank, Child's school, My school, Work, Immigration office, Community center, Pharmacy, Landlord), \"max\": 4}; otherwise omit}.\n" +
+      "Fields: name, country, lang (her home language), voice (BCP-47 code of that language, like vi-VN or sv-SE), look (cardigan color: one of teal, sage, navy, rust, plum), skin (skin tone: one of porcelain, light, fair, olive, tan, brown, deep), hair (hair color: one of black, darkbrown, brown, blonde, red, gray), style (hairstyle: one of curly, bob, long, bun, wavy), eyes (one of monolid, almond, round), face (face shape: one of oval, round, long, square, heart), nose (one of narrow, medium, wide), lips (one of thin, medium, full), brows (one of thin, medium, thick, straight), hard (what she has been through and helps with), tone (how she talks), talk (how much Korean she uses), about (one or two sentences of extra detail about her), user (short notes about the user; keep earlier notes and add new ones). Also: role (the user's situation: one of parent, student, both, other). Also: topics (the user's call buttons: up to 4 different places, an array of {icon, label, ask, situations: [3 x {label, ask}]}; icon is one of hospital, bank, school, office, work, home, shop, transit, phone, care, other). Change topics when the user asks to change their buttons or says their daily life changed. If you change lang, also set greetLine to the greeting \"Hi! It's good to see you. What can I help you with today?\" in the new language.";
+  }
+  var PRESETS = function(){ var n = S.p.name; return ["Change " + n + "'s name", "Make " + n + " speak more Korean", "Change how " + n + " talks", "Tell " + n + " something new about me"]; };
+  function hAdd(cls, text){ var d = document.createElement("div"); d.className = "m " + cls; d.textContent = text; $("hMsgs").appendChild(d); $("hMsgs").scrollTop = $("hMsgs").scrollHeight; return d; }
+  function hChips(list){
+    var box = $("hChips"); box.innerHTML = "";
+    (list || []).slice(0, 4).forEach(function(t){ var b = document.createElement("button"); b.className = "chip"; b.textContent = t; b.addEventListener("click", function(){ hSend(t); }); box.appendChild(b); });
+    $("hMsgs").scrollTop = $("hMsgs").scrollHeight;
+  }
+  function hPick(pk){
+    var box = $("hChips"); box.innerHTML = "";
+    var max = Math.min(4, Number(pk.max) || 4), chosen = [];
+    var hint = document.createElement("div"); hint.className = "pickhint"; hint.textContent = "Pick up to " + max; box.appendChild(hint);
+    var done = document.createElement("button"); done.className = "pickdone"; done.disabled = true;
+    function upd(){ done.disabled = !chosen.length; done.textContent = chosen.length ? "Done (" + chosen.length + ")" : "Done"; }
+    (pk.options || []).slice(0, 10).forEach(function(o){
+      var b = document.createElement("button"); b.className = "chip"; b.textContent = o; b.setAttribute("aria-pressed", "false");
+      b.addEventListener("click", function(){
+        var i = chosen.indexOf(o);
+        if (i >= 0) chosen.splice(i, 1); else if (chosen.length < max) chosen.push(o); else return;
+        b.classList.toggle("on", chosen.indexOf(o) >= 0); b.setAttribute("aria-pressed", String(chosen.indexOf(o) >= 0)); upd();
+      });
+      box.appendChild(b);
+    });
+    upd(); done.addEventListener("click", function(){ if (chosen.length) hSend("I often go to: " + chosen.join(", ") + "."); });
+    box.appendChild(done);
+    $("hMsgs").scrollTop = $("hMsgs").scrollHeight;
+    $("hIn").placeholder = "Or type other places";
+  }
+  function hMini(){
+    var p = S.p;
+    $("hMiniWrap").hidden = hMode === "onboard";
+    $("hMiniAv").innerHTML = portrait(friendLook());
+    $("hMini").innerHTML = ""; var b = document.createElement("b"); b.textContent = p.name + " · your friend"; $("hMini").appendChild(b);
+    $("hMini").appendChild(document.createTextNode(p.country + " · " + p.lang + " · " + p.tone));
+  }
+  function openHana(mode){
+    hMode = mode; hHist = []; hBusy = false;
+    if (mode === "onboard") { S.p = JSON.parse(JSON.stringify(DEFAULT_P)); store(); }
+    $("hMsgs").innerHTML = ""; $("hIn").value = "";
+    $("hBack").hidden = mode === "onboard";
+    $("hSub").textContent = mode === "onboard" ? "Between guide · getting to know you" : "Between guide · always here";
+    hMini(); show("hana");
+    var greet = mode === "onboard"
+      ? {say:"Hi, I'm Hana! 반가워요. I'll ask a few questions, then make a friend just for you. You can talk or type. First, where are you from?", options:["I'm from Vietnam","I'm from the Philippines","I'm from China"]}
+      : {say:"오랜만이에요! 요즘 잘 지내요? What can I help you with today?", options:PRESETS()};
+    hHist.push({role:"user", content: mode === "onboard" ? "(I opened Between for the first time.)" : "(I opened the chat with Hana.)"});
+    hHist.push({role:"assistant", content: JSON.stringify({say:greet.say, changes:{}, done:false, options:greet.options})});
+    var t = document.createElement("div"); t.className = "typing"; t.innerHTML = "<b></b><b></b><b></b>"; $("hMsgs").appendChild(t);
+    setTimeout(function(){ t.remove(); hAdd("h", greet.say); hChips(greet.options); }, 600);
+  }
+  function normalize(k, v){
+    var t = String(v).toLowerCase().trim();
+    var MAP = {
+      skin: [[/very dark|deep|ebony|black/, "deep"], [/dark brown|^brown|medium brown|brown/, "brown"], [/tan|caramel|bronze/, "tan"], [/olive|medium|wheat|beige|golden|light brown/, "olive"], [/porcelain|very light|very fair|pale/, "porcelain"], [/fair/, "fair"], [/light|white/, "light"]],
+      hair: [[/gr[ae]y|silver|white/, "gray"], [/blond|gold|fair/, "blonde"], [/red|auburn|ginger|copper/, "red"], [/dark.?brown|espresso/, "darkbrown"], [/brown|chestnut|brunette/, "brown"], [/black|dark/, "black"]],
+      style: [[/curl|coil|afro|kink/, "curly"], [/wav/, "wavy"], [/bun|updo|pony|tied|braid/, "bun"], [/bob|short|pixie|chin/, "bob"], [/long|straight/, "long"]],
+      eyes: [[/round|big|wide/, "round"], [/narrow|monolid|mono|single|small|hooded/, "monolid"], [/almond|oval|double/, "almond"]],
+      face: [[/round|full/, "round"], [/long|oblong|narrow/, "long"], [/square|strong|angular/, "square"], [/heart|pointed|v.?shape/, "heart"], [/oval|.+/, "oval"]],
+      nose: [[/wide|broad|flat/, "wide"], [/narrow|thin|slim|high|pointed/, "narrow"], [/.+/, "medium"]],
+      lips: [[/full|thick|plump/, "full"], [/thin/, "thin"], [/.+/, "medium"]],
+      brows: [[/thick|bold|heavy/, "thick"], [/straight|flat/, "straight"], [/thin|fine/, "thin"], [/.+/, "medium"]],
+      look: [[/teal|turquoise|green.?blue/, "teal"], [/sage|olive|green|mint/, "sage"], [/navy|blue|indigo/, "navy"], [/rust|orange|red|brown|terracotta|coral|peach/, "rust"], [/plum|purple|violet|lavender|pink/, "plum"]],
+      role: [[/both/, "both"], [/parent|mother|mom|father|dad/, "parent"], [/student/, "student"], [/.+/, "other"]],
+      alone: [[/^y|true|no one|nobody/, "yes"], [/.+/, "no"]]
+    }[k] || [];
+    for (var i = 0; i < MAP.length; i++) if (MAP[i][0].test(t)) return MAP[i][1];
+    return t;
+  }
+  /* Appearance ranges by country, so the friend looks like someone from the user's country (with natural variety). */
+  var REGIONS = [
+    [/viet|china|chinese|taiwan|hong ?kong|japan|mongol|korea/, {skin:["light","fair","porcelain"], hair:["black","black","darkbrown"], eyes:["monolid","almond","monolid"]}],
+    [/thai|cambod|khmer|laos|myanmar|burm|philipp|filip|indones|malay|singapore/, {skin:["olive","tan","olive"], hair:["black","black","darkbrown"], eyes:["almond","round"]}],
+    [/uzbek|kazakh|kyrgyz|tajik|turkmen/, {skin:["light","fair"], hair:["black","darkbrown","brown"], eyes:["almond","monolid"]}],
+    [/nepal|india|sri ?lanka|bangla|pakistan|bhutan/, {skin:["tan","brown","olive"], hair:["black","black","darkbrown"], eyes:["round","almond"]}],
+    [/sweden|swed|norw|denmark|danish|finland|finn|iceland|netherland|dutch|german|poland|polish|ukrain|russia|belarus|ireland|irish|scotland|england|united kingdom|\buk\b|britain|lithuan|latvia|eston|czech|austria/, {skin:["porcelain","light","porcelain"], hair:["blonde","brown","blonde","red"], eyes:["round"]}],
+    [/france|french|spain|spanish|italy|italian|portug|greece|greek|croatia|serbia|romania|hungar|bulgar|turkey|turk/, {skin:["light","olive"], hair:["darkbrown","brown","black"], eyes:["round","almond"]}],
+    [/iran|iraq|egypt|morocc|alger|tunis|jordan|leban|syria|saudi|emirat|qatar|yemen|afghan|israel|palestin/, {skin:["olive","tan"], hair:["black","darkbrown"], eyes:["round","almond"]}],
+    [/nigeria|ghana|kenya|ethiop|uganda|tanzan|congo|cameroon|senegal|ivory|zimbab|south africa|sudan|somali|rwanda|africa/, {skin:["deep","brown","deep"], hair:["black"], eyes:["round"], style:["curly","bun","curly"]}],
+    [/mexic|guatemal|peru|bolivia|ecuador|colomb|venez|chile|argentin|brazil|cuba|dominic|honduras|salvador|nicaragua|paragu|urugu|latin/, {skin:["olive","tan","light"], hair:["darkbrown","black","brown"], eyes:["round","almond"]}],
+    [/united states|america|usa|\bus\b|canada|australia|new zealand/, {skin:["light","porcelain","light","fair"], hair:["brown","blonde","darkbrown","blonde","red"], eyes:["round"]}]
+  ];
+  function regionOf(country){ var t = String(country || "").toLowerCase(); for (var i = 0; i < REGIONS.length; i++) if (REGIONS[i][0].test(t)) return REGIONS[i][1]; return null; }
+  /* Skin, hair and eyes come from the country's range; the model's hairstyle is kept when it fits. */
+  function fitLook(seed){
+    var R = regionOf(S.p.country); if (!R) return;
+    var h = 0, key = seed || ((S.p.name || "") + (S.p.country || "")); for (var q = 0; q < key.length; q++) h = (h * 31 + key.charCodeAt(q)) >>> 0;
+    ["skin", "hair", "eyes", "style"].forEach(function(k, i){
+      var list = R[k]; if (!list) return;
+      if (k !== "style" || list.indexOf(S.p[k]) < 0) S.p[k] = list[(h >>> (i * 4)) % list.length];
+    });
+  }
+  function applyChanges(ch){
+    if (!ch || typeof ch !== "object") return [];
+    var done = [];
+    if (ch.topics) { var tp = cleanTopics(ch.topics); if (tp) { S.p.topics = tp; done.push("topics"); } }
+    FIELDS.forEach(function(k){
+      if (ch[k] == null || ch[k] === "") return;
+      var v = String(ch[k]).slice(0, 400);
+      if (/^(look|skin|hair|style|eyes|face|nose|lips|brows|role|alone)$/.test(k)) v = normalize(k, v);
+      if (k === "look" && !LOOKS[v]) return;
+      if (k === "skin" && !SKIN[v]) return;
+      if (k === "hair" && !HAIR[v]) return;
+      if (k === "style" && !STYLES[v]) return;
+      if (k === "eyes" && !EYES[v]) return;
+      if (k === "face" && !FACES[v]) return;
+      if (k === "nose" && !NOSES[v]) return;
+      if (k === "lips" && !LIPS[v]) return;
+      if (k === "brows" && !BROWS[v]) return;
+      if (k === "role" && !ROLES[v]) return;
+      if (k === "alone" && v !== "yes" && v !== "no") return;
+      if (S.p[k] !== v) { S.p[k] = v; done.push(k); }
+    });
+    if (done.indexOf("country") >= 0 && !(ch.skin || ch.hair || ch.eyes)) fitLook();
+    if (done.length) { store(); renderContacts(); hMini(); }
+    return done;
+  }
+  /* Build the friend from the whole onboarding conversation, in one dedicated request. */
+  function buildFriend(){
+    var transcript = hHist.map(function(m){
+      if (m.role === "user") return /^\(/.test(m.content) ? "" : "User: " + m.content;
+      var j = parseJSON(m.content); return "Hana: " + (j.say || "");
+    }).filter(Boolean).join("\n");
+    var sys = "You create the AI friend for a user of Between, an app for immigrant parents living in South Korea. The friend is a fictional peer mentor: a woman from the SAME country as the user who speaks the SAME home language, has lived in Korea several years longer than the user, and has already been through the same hard situations. Base everything on the conversation; never default to a country the user did not mention. Give her an appearance that a woman from that country could naturally have, drawn respectfully with no caricature: choose skin, hair color, hairstyle, eyes, face shape, nose, lips and brows that fit people from that country, with natural variety. Match her life to the user's: if the user is raising children, she has raised children in Korea; if the user is a student, she studied in Korea before.\n" +
+      "Reply with ONLY one JSON object containing ALL of these fields: name (a fitting first name from the user's culture, or the name the user asked for), country, lang (home language), voice (BCP-47 code of that language, like sv-SE), look (cardigan color: one of teal, sage, navy, rust, plum), skin (skin tone: one of porcelain, light, fair, olive, tan, brown, deep), hair (hair color: one of black, darkbrown, brown, blonde, red, gray), style (hairstyle: one of curly, bob, long, bun, wavy), eyes (one of monolid, almond, round), face (face shape: one of oval, round, long, square, heart), nose (one of narrow, medium, wide), lips (one of thin, medium, full), brows (one of thin, medium, thick, straight), hard (what she has been through and helps with, short phrase), tone (how she talks, short phrase), talk (how much Korean she uses, short phrase), about (two short sentences about her life in Korea: city, family, years in Korea), user (short notes about the user from the conversation), role (the user's situation: parent, student, both, or other), helper (who the user usually asks for help, as a short phrase from the user's point of view such as \"your daughter\", \"your husband\", \"a friend from church\"; empty if no one), alone (\"yes\" if the user said they have no one to ask or usually handle things alone, otherwise \"no\"), topics (one button per place the user said they go to often, up to 4 DIFFERENT places, never two buttons for the same place: an array of {\"icon\": one of hospital, bank, school, office, work, home, shop, transit, phone, care, other; \"label\": 1 to 3 English words naming the place for this user, such as \"Child's school\" or \"Kids' clinic\"; \"ask\": a first-person sentence about that place, such as \"I have a question about my child's school.\"; \"situations\": exactly 3 common situations at that place, putting first anything the user said was hard there, each {\"label\": 2 to 4 English words such as \"Read a school notice\", \"ask\": the first-person question the user would say}}), greetLine (the greeting \"Hi! It's good to see you. What can I help you with today?\" said naturally in her home language).";
+    return ask(sys, [{role:"user", content:"Onboarding conversation:\n" + transcript + "\n\nCreate the friend now."}], {json:true}).then(function(r){
+      r = r && (r.changes || r.friend || r.persona || r) || {};
+      var before = JSON.parse(JSON.stringify(DEFAULT_P));
+      S.p = before; applyChanges(r);
+      var h = 0, key = (S.p.name || "") + (S.p.country || ""); for (var q = 0; q < key.length; q++) h = (h * 31 + key.charCodeAt(q)) >>> 0;
+      function pickOf(obj, n){ var ks = Object.keys(obj); return ks[n % ks.length]; }
+      if (!r.look) S.p.look = pickOf(LOOKS, h); if (!r.style) S.p.style = pickOf(STYLES, h >>> 3); if (!r.eyes) S.p.eyes = pickOf(EYES, h >>> 6); if (!r.face) S.p.face = pickOf(FACES, h >>> 9);
+      fitLook();
+      if (!S.p.name || !S.p.country || !S.p.lang) throw {code:"build"};
+      if (!S.p.about) S.p.about = "Came to Korea from " + S.p.country + " a few years before you.";
+      if (!S.p.hard) S.p.hard = "everyday life in Korea";
+      store(); renderContacts(); return S.p;
+    });
+  }
+  var LABELS = {name:"name", topics:"quick topics", country:"background", lang:"home language", voice:"voice", look:"look", skin:"look", hair:"hair", style:"hairstyle", hard:"what she helps with", tone:"way of talking", talk:"Korean level", about:"details", user:"what she knows about you"};
+  function hSend(text){
+    text = String(text || "").trim(); if (!text || hBusy) return;
+    if (text === "Try again" && hMode === "onboard") {
+      hBusy = true; hChips([]); var w = hAdd("sys", "Hana is making your friend…");
+      buildFriend().then(function(){
+        w.textContent = "Your friend is ready"; hBusy = false;
+        var go = document.createElement("button"); go.className = "big"; go.style.marginTop = "6px"; go.textContent = "Meet " + S.p.name;
+        go.addEventListener("click", openMeet); $("hMsgs").appendChild(go); $("hMsgs").scrollTop = $("hMsgs").scrollHeight;
+      }, function(e){ w.remove(); hBusy = false; hAdd("err", errorCopy(e) || "Hana couldn't finish your friend. Tap Try again."); hChips(["Try again"]); });
+      return;
+    }
+    hBusy = true; hChips([]); hAdd("u", text); hHist.push({role:"user", content:text});
+    var t = document.createElement("div"); t.className = "typing"; t.innerHTML = "<b></b><b></b><b></b>"; $("hMsgs").appendChild(t); $("hMsgs").scrollTop = $("hMsgs").scrollHeight;
+    ask(hanaRules(), hHist, {json:true}).then(function(r){
+      t.remove(); r = r || {};
+      var say = String(r.say || "").trim() || "…";
+      hHist.push({role:"assistant", content: JSON.stringify(r)});
+      hAdd("h", say);
+      if (hMode === "settings") {
+        var changed = applyChanges(r.changes || r.friend || r.persona);
+        var shown = changed.filter(function(k){ return k !== "voice"; }).map(function(k){ return LABELS[k]; }).filter(function(v, i, a){ return a.indexOf(v) === i; });
+        if (shown.length) hAdd("sys", "Updated " + S.p.name + "'s " + shown.join(", "));
+      }
+      if (hMode === "onboard" && r.done) {
+        hChips([]);
+        var w = hAdd("sys", "Hana is making your friend…");
+        buildFriend().then(function(){
+          w.textContent = "Your friend is ready";
+          var go = document.createElement("button"); go.className = "big"; go.style.marginTop = "6px"; go.textContent = "Meet " + S.p.name;
+          go.addEventListener("click", openMeet); $("hMsgs").appendChild(go); $("hMsgs").scrollTop = $("hMsgs").scrollHeight;
+          hBusy = false;
+        }, function(e){
+          w.remove(); hBusy = false;
+          hAdd("err", e && e.code === "build" ? "Hana couldn't finish your friend. Tap Try again." : (errorCopy(e) || "Something went wrong."));
+          hChips(["Try again"]);
+          hHist.push({role:"user", content:"(Please try making my friend again.)"});
+          hHist.push({role:"assistant", content: JSON.stringify({say:"Let's try again.", changes:{}, done:true, options:[]})});
+        });
+        return;
+      }
+      hBusy = false;
+      $("hIn").placeholder = "Message Hana";
+      if (hMode === "onboard" && r.pick && Array.isArray(r.pick.options) && r.pick.options.length) hPick(r.pick);
+      else hChips(Array.isArray(r.options) && r.options.length ? r.options : (hMode === "settings" ? PRESETS() : []));
+    }, function(e){
+      t.remove(); hHist.pop(); hBusy = false;
+      var m = errorCopy(e); if (m) hAdd("err", m);
+      hChips(hMode === "settings" ? PRESETS() : []);
+    });
+  }
+  $("hForm").addEventListener("submit", function(e){ e.preventDefault(); var v = $("hIn").value; $("hIn").value = ""; hSend(v); });
+  $("hBack").addEventListener("click", function(){ if (!hBusy) { show("contacts"); } });
+  /* tap-to-talk with Hana */
+  var hRec = null;
+  $("hMic").addEventListener("click", function(){
+    var btn = this;
+    if (dict) { dTap(btn, $("hIn"), function(){ var v = $("hIn").value.trim(); if (v) { $("hIn").value = ""; hSend(v); } }); return; }
+    if (btn.classList.contains("on")) { try { hRec && hRec.stop(); } catch(e) {} return; }
+    if (!SR) return;
+    var heard = "";
+    try {
+      hRec = new SR(); hRec.lang = micLang(); hRec.interimResults = true; hRec.continuous = false;
+      hRec.onresult = function(e){ var s = ""; for (var i = 0; i < e.results.length; i++) s += e.results[i][0].transcript; heard = s; $("hIn").value = s; };
+      hRec.onerror = function(){};
+      hRec.onend = function(){ btn.classList.remove("on"); if (heard.trim()) { $("hIn").value = ""; hSend(heard); } };
+      hRec.start(); btn.classList.add("on");
+    } catch(e) { btn.classList.remove("on"); }
+  });
+
+  /* ======================= MEET ======================= */
+  var MI = {
+    home:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"></path></svg>',
+    life:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"></path><path d="M10 20v-5h4v5"></path></svg>',
+    help:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"></path><circle cx="12" cy="9.5" r="2.5"></circle></svg>',
+    talk:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg>'
+  };
+  function cap(t){ t = String(t || ""); return t.charAt(0).toUpperCase() + t.slice(1); }
+  function openMeet(){
+    var p = S.p;
+    $("meetAv").innerHTML = portrait(friendLook());
+    $("meetName").textContent = p.name;
+    $("meetId").textContent = [p.country ? "From " + p.country : "", p.lang ? "speaks " + p.lang + " and Korean" : ""].filter(Boolean).join(" · ");
+    var box = $("meetRows"); box.innerHTML = "";
+    function row(icon, title, text, chips){
+      var r = el("div", "mrow"), i = el("div", "mi"); i.innerHTML = icon; r.appendChild(i);
+      var c = el("div"); c.style.minWidth = "0"; c.appendChild(el("div", "mt", title));
+      if (text) c.appendChild(el("div", "mv", text));
+      if (chips && chips.length) { var w = el("div", "mchips"); chips.forEach(function(x){ w.appendChild(el("span", "", x)); }); c.appendChild(w); }
+      r.appendChild(c); box.appendChild(r);
+    }
+    if (p.about) row(MI.life, "Her life in Korea", p.about);
+    var places = (p.topics || []).map(function(t){ return t.label; });
+    if (places.length || p.hard) row(MI.help, "She can help you with", places.length ? "" : cap(p.hard), places);
+    if (p.tone || p.talk) row(MI.talk, "How she talks", [cap(p.tone), p.talk ? cap(p.talk) : ""].filter(Boolean).join(". ") + ".");
+    var h = $("meetHelper");
+    if (p.alone === "yes") h.textContent = "You said you usually handle things on your own. Now you can ask " + p.name + " anytime, even the same question twice.";
+    else if (p.helper) h.textContent = "You usually ask " + p.helper + ". Now you can ask " + p.name + " anytime, even the same question twice.";
+    h.hidden = !(p.alone === "yes" || p.helper);
+    $("meetOfficial").hidden = p.alone !== "yes";
+    show("meet");
+  }
+  $("meetSave").addEventListener("click", function(){ S.created = true; store(); renderContacts(); show("contacts"); toast(S.p.name + " was saved to your contacts"); });
+
+  /* ======================= CONTACTS ======================= */
+  function renderContacts(){
+    var p = S.p;
+    $("cAv").innerHTML = portrait(friendLook()); $("cName").textContent = p.name;
+    $("cSub").textContent = p.country ? "From " + p.country : "Your AI friend";
+    $("callBtn").setAttribute("aria-label", "Video call " + p.name);
+    renderRecent(); setEngine();
+  }
+  function renderRecent(){
+    var box = $("recent"); box.innerHTML = "";
+    if (!S.calls.length) { var e = document.createElement("div"); e.className = "empty"; e.textContent = "No calls yet. Tap the green button to video call " + S.p.name + "."; box.appendChild(e); return; }
+    S.calls.forEach(function(c){
+      var b = document.createElement("button"); b.className = "rc";
+      b.innerHTML = '<span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="3"></rect><path d="M16 10l5-3v10l-5-3z"></path></svg></span><span style="flex:1;min-width:0"><span class="nm" style="font-size:15px"></span><span class="sub" style="display:block"></span></span>';
+      var t = c.sum && c.sum.title ? (c.practice ? "Practice · " + c.sum.title.replace(/^Practice · /, "") : c.sum.title) : (c.practice ? c.title : "Call with " + c.name);
+
+      b.querySelector(".nm").textContent = t; b.querySelector(".nm").classList.add("one"); b.querySelector(".nm").style.display = "block";
+      var sb = b.querySelector(".sub"); sb.classList.add("one");
+      sb.textContent = (!c.sum && c.sumState === "busy") ? "Organizing your call…" : (c.practice ? "Practice call · " : "Video call · ") + c.dur + " · " + whenLabel(c.when);
+      if (!c.sum && c.sumState !== "busy" && c.sumState !== "err" && c.lines && c.lines.length) setTimeout(function(){ summarize(c); }, 50);
+      b.addEventListener("click", function(){ openLog(c, false); }); box.appendChild(b);
+    });
+  }
+  $("hanaBtn").addEventListener("click", function(){ openHana("settings"); });
+  $("hanaBtn2").addEventListener("click", function(){ openHana("settings"); });
+  $("callBtn").addEventListener("click", startCall);
+  function openConn(){ $("sKey").value = S.apiKey; $("sModel").value = S.model; setEngine(); $("connSheet").hidden = false; }
+  $("gear").addEventListener("click", openConn);
+  $("wConn").addEventListener("click", openConn);
+  $("connSave").addEventListener("click", function(){ S.apiKey = $("sKey").value.trim(); S.model = $("sModel").value; store(); setEngine(); $("connSheet").hidden = true; });
+  $("connSheet").addEventListener("click", function(e){ if (e.target === this) this.hidden = true; });
+  $("resetBtn").addEventListener("click", function(){
+    S.created = false; S.chat = []; S.calls = []; S.p = JSON.parse(JSON.stringify(DEFAULT_P)); S.apiKey = $("sKey").value.trim(); S.model = $("sModel").value; store();
+    S.calls = []; store(); $("connSheet").hidden = true; show("welcome");
+  });
+  $("wStart").addEventListener("click", function(){ openHana("onboard"); });
+
+
+  /* ======================= MESSAGES ======================= */
+  var chBusy = false;
+  function chatRules(){
+    return friendRules()
+      .replace("You are on a live video call with the user, and everything you write is read aloud by text-to-speech.", "You are texting with the user in a messenger app.")
+      .replace("The user's words may come from speech recognition and contain errors; guess the meaning kindly.", "The user may write with typos or mix languages; guess the meaning kindly.")
+      .replace(/Format:[\s\S]*$/, "Format: a short, friendly text message of one to four short sentences. When you teach Korean, write the Korean sentence with its meaning in parentheses. No markdown, lists or emoji.");
+  }
+  function scrollChat(){ $("chMsgs").scrollTop = $("chMsgs").scrollHeight; }
+  function chBubble(me, text){
+    var d = document.createElement("div"); d.className = "m " + (me ? "u" : "h"); d.textContent = text;
+    $("chMsgs").appendChild(d); scrollChat(); return d;
+  }
+  function picBubble(m, box){
+    box = box || $("chMsgs");
+    var d = document.createElement("div"); d.className = "m u pic";
+    var im = document.createElement("img"); im.src = m.img; im.alt = "Document photo"; d.appendChild(im);
+    if (m.text) { var t = document.createElement("div"); t.textContent = m.text; d.appendChild(t); }
+    box.appendChild(d); box.scrollTop = box.scrollHeight;
+  }
+  function docCard(r, box){
+    box = box || $("chMsgs");
+    var d = document.createElement("div"); d.className = "doc";
+    function sec(k, el){ var w = document.createElement("div"); var h = document.createElement("div"); h.className = "k"; h.textContent = k; w.appendChild(h); w.appendChild(el); d.appendChild(w); }
+    var h4 = document.createElement("h4"); h4.textContent = r.title || "Document"; sec("DOCUMENT", h4);
+    if (r.what) { var p1 = document.createElement("div"); p1.textContent = r.what; sec("WHAT IT IS", p1); }
+    if (r.todo && r.todo.length) {
+      var tbox = document.createElement("div"), ol = document.createElement("ol");
+      r.todo.forEach(function(x){ var li = document.createElement("li"); li.textContent = x; ol.appendChild(li); }); tbox.appendChild(ol);
+      if (r.deadline) { var dd = document.createElement("span"); dd.className = "due"; dd.textContent = "Due: " + r.deadline; tbox.appendChild(dd); }
+      sec("WHAT TO DO", tbox);
+    }
+    if (r.words && r.words.length) {
+      var w = document.createElement("div"); w.className = "w";
+      r.words.slice(0, 6).forEach(function(x){ var sp = document.createElement("span"); sp.lang = "ko"; sp.textContent = (x.ko || "") + (x.meaning ? " · " + x.meaning : ""); w.appendChild(sp); });
+      sec("WORDS TO KNOW", w);
+    }
+    if (r.check) { var c = document.createElement("div"); c.className = "chk"; c.textContent = r.check; d.appendChild(c); }
+    if (r.translation) {
+      var det = document.createElement("details"), su = document.createElement("summary"); su.textContent = "See full translation"; det.appendChild(su);
+      var tr = document.createElement("div"); tr.className = "tr"; tr.textContent = r.translation; det.appendChild(tr); d.appendChild(det);
+    }
+    box.appendChild(d); box.scrollTop = box.scrollHeight; return d;
+  }
+  function renderMsg(m){ if (m.doc) docCard(m.doc); else if (m.img) picBubble(m); else chBubble(m.me, m.text); }
+  function updateDocHint(){ $("chDocHint").hidden = S.chat.some(function(m){ return m.me; }) || !!pending; }
+  function openChat(){
+    var p = S.p;
+    $("chAv").innerHTML = portrait(friendLook()); $("chName").textContent = p.name; $("chCall").setAttribute("aria-label", "Video call " + p.name);
+    if (!S.chat.length) { S.chat.push({me:false, text:"Hi! 반가워요. Text me anytime, even with the same question twice. You can also send me a photo of any document."}); store(); }
+    $("chMsgs").innerHTML = ""; S.chat.forEach(renderMsg); updateDocHint();
+    show("chat"); setTimeout(function(){ $("chIn").focus(); }, 50);
+  }
+  function chatHistory(){
+    var out = [{role:"user", content:"(I opened our chat.)"}];
+    S.chat.slice(-30).forEach(function(m){
+      var role = m.me ? "user" : "assistant", last = out[out.length - 1];
+      var text = m.doc ? "(I explained the document: " + (m.doc.title || "") + ". " + (m.doc.what || "") + " To do: " + (m.doc.todo || []).join("; ") + ")" : m.img ? "(I sent a photo of a document.) " + (m.text || "") : m.text;
+      if (last.role === role) last.content += "\n" + text; else out.push({role:role, content:text});
+    });
+    return out;
+  }
+  function typingDot(){ var t = document.createElement("div"); t.className = "typing"; t.innerHTML = "<b></b><b></b><b></b>"; $("chMsgs").appendChild(t); scrollChat(); return t; }
+  function chError(e){ var m = errorCopy(e); if (e && e.code === "images_unavailable") m = "Photos can't be sent from this page. Open the downloaded file with an API key to send documents."; if (m) { var d = document.createElement("div"); d.className = "m err"; d.textContent = m; $("chMsgs").appendChild(d); scrollChat(); } }
+  function chSend(text){
+    text = String(text || "").trim();
+    if (pending) { sendDoc(text); return; }
+    if (!text || chBusy) return;
+    chBusy = true; S.chat.push({me:true, text:text}); store(); chBubble(true, text); updateDocHint();
+    var t = typingDot(), b = null;
+    ask(chatRules(), chatHistory(), {onText:function(tx){ if (!b) { t.remove(); b = chBubble(false, ""); } b.textContent = tx; scrollChat(); }})
+      .then(function(reply){
+        reply = String(reply || "").trim() || "…";
+        t.remove(); if (!b) b = chBubble(false, ""); b.textContent = reply;
+        S.chat.push({me:false, text:reply}); if (S.chat.length > 60) S.chat = S.chat.slice(-60); store(); chBusy = false;
+      }, function(e){ t.remove(); if (b) b.remove(); chBusy = false; chError(e); });
+  }
+
+  /* ---- documents: photo → explanation card ---- */
+  var pending = null; /* {full: dataURL for Claude, thumb: small dataURL to keep, blob} */
+  function docRules(){
+    var p = S.p;
+    return "You are " + p.name + ", a fictional AI friend in Between who helps immigrant parents and students in South Korea handle everyday tasks. The user sent you a photo of a Korean document (a school notice, bill, form, letter, receipt...)." +
+      (userFacts() ? " About the user: " + userFacts() : "") +
+      " Read it carefully and explain it so they can act on it themselves. Write explanations in the language the user writes in (English if unclear); the full translation goes into " + (p.lang ? p.lang : "the user's home language") + " if possible, otherwise English." +
+      " If you cannot read part of it, say so instead of guessing. For visa, money, legal or medical decisions, add a short note in 'check' saying exactly where to confirm." +
+      ' Reply with ONLY one JSON object: {"title": "short name of the document", "what": "one or two sentences: what this is and why they got it", "todo": ["short steps the user must do, in order"], "deadline": "the due date if any, else empty", "words": [{"ko": "important Korean word on the document", "meaning": "its meaning"}], "check": "where to confirm, or empty", "translation": "a plain full translation of the main text", "say": "one short friendly sentence to send along"}';
+  }
+  function shrink(file, max, q){
+    return new Promise(function(res, rej){
+      var fr = new FileReader();
+      fr.onload = function(){
+        var im = new Image();
+        im.onload = function(){
+          var k = Math.min(1, max / Math.max(im.width, im.height)), c = document.createElement("canvas");
+          c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+          c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+          var url = c.toDataURL("image/jpeg", q);
+          c.toBlob(function(bl){ res({url:url, blob:bl}); }, "image/jpeg", q);
+        };
+        im.onerror = rej; im.src = fr.result;
+      };
+      fr.onerror = rej; fr.readAsDataURL(file);
+    });
+  }
+  function pickPhoto(){ if (!chBusy) $("chFile").click(); }
+  $("chCam").addEventListener("click", pickPhoto);
+  $("chDocChip").addEventListener("click", pickPhoto);
+  $("chFile").addEventListener("change", function(){
+    var f = this.files && this.files[0]; this.value = ""; if (!f) return;
+    Promise.all([shrink(f, 1568, .85), shrink(f, 360, .7)]).then(function(r){
+      pending = {full:r[0].url, blob:r[0].blob, thumb:r[1].url};
+      $("chPrevImg").src = pending.thumb; $("chPrev").hidden = false; updateDocHint();
+      $("chIn").placeholder = "Ask about it (optional)"; $("chIn").focus();
+    }, function(){ chError({code:"x"}); });
+  });
+  $("chPrevX").addEventListener("click", function(){ pending = null; $("chPrev").hidden = true; $("chIn").placeholder = "Message"; updateDocHint(); });
+  function sendDoc(text){
+    if (chBusy) return;
+    var pic = pending; pending = null; $("chPrev").hidden = true; $("chIn").placeholder = "Message";
+    chBusy = true;
+    var mine = {me:true, img:pic.thumb, text:text}; S.chat.push(mine); store(); picBubble(mine); updateDocHint();
+    var t = typingDot();
+    var q = text ? "My question about this document: " + text : "What is this document and what do I need to do?";
+    ask(docRules(), [{role:"user", content:q}], {json:true, image:pic.full, blob:pic.blob}).then(function(r){
+      t.remove(); r = r || {}; chBusy = false;
+      if (r.say) { S.chat.push({me:false, text:String(r.say)}); chBubble(false, String(r.say)); }
+      var doc = {title:r.title, what:r.what, todo:Array.isArray(r.todo) ? r.todo.map(String) : [], deadline:r.deadline, words:Array.isArray(r.words) ? r.words : [], check:r.check, translation:r.translation};
+      S.chat.push({me:false, doc:doc}); if (S.chat.length > 60) S.chat = S.chat.slice(-60); store(); docCard(doc);
+    }, function(e){ t.remove(); chBusy = false; chError(e); });
+  }
+  $("chForm").addEventListener("submit", function(e){ e.preventDefault(); var v = $("chIn").value; $("chIn").value = ""; chSend(v); });
+  $("chBack").addEventListener("click", function(){ show("contacts"); });
+  $("chCall").addEventListener("click", function(){ startCall(); });
+  $("msgBtn").addEventListener("click", openChat);
+  $("cMain").addEventListener("click", openChat);
+
+  /* ======================= VIDEO CALL ======================= */
+  function friendRules(mode){
+    var p = S.p;
+    var focus = "The user wants PRACTICAL HELP with a task in Korea (hospital, bank, school, government paperwork, or anything else). If the need is unclear, ask one short question first and wait. Once you know the exact need, give concrete help one step at a time: what to bring, where to go, what to say. Give a Korean sentence only when the user is ready to use it, keep it short, and add its meaning. Offer practice only if it clearly helps, and not every time. If they want to practice, briefly play the other person (clerk, nurse, teacher) in easy polite Korean and give one short tip per line. For visa, money, legal or medical decisions, say you don't want to guess and tell them exactly where to confirm (the office itself, or the 1345 immigration helpline).\n" +
+      "School questions come in two kinds. If the user is a PARENT asking about their child's school: help with school notices (가정통신문), the class app or notice board (알림장), messages to the homeroom teacher (담임 선생님), absences, school lunch and allergy forms, after-school programs (방과후), and parent meetings (학부모 상담). If the user is a STUDENT themselves (university, language school, graduate school): help with course registration (수강신청), the international student office (국제처), scholarships and tuition, emails to professors (교수님), student visa (D-2/D-4) paperwork, dorms and part-time work rules. Use what you know about the user to tell which; if it is still unclear, ask one short question.\n";
+    return "You are " + p.name + ", a fictional AI friend in Between, an app that helps immigrant parents in South Korea handle everyday tasks on their own. You are on a live video call with the user, and everything you write is read aloud by text-to-speech.\n" +
+      "About you: you are from " + p.country + " and your home language is " + p.lang + ". You have lived in Korea for years and have already been through " + p.hard + ". " + p.about + " You are a few steps ahead of the user on the same path, like an older friend from home.\n" +
+      (userFacts() ? "About the user: " + userFacts() + "\n" : "") +
+      (p.alone === "yes" ? "The user has no one they usually ask for help. When it fits, also point them to official help: the 1345 Immigration Contact Center (many languages), the Danuri helpline 1577-1366 for multicultural families (24 hours, many languages), and their local Family Center (가족센터).\n" : "") +
+      "Way of talking: " + p.tone + ". How much Korean to use: " + p.talk + ".\n" +
+      "Purpose: you are here for practical help with everyday tasks in Korea, not general chatting. If the user shares a worry, acknowledge it kindly in one sentence, then ask what you can help them do about it.\n" +
+      focus +
+      "Language: answer in the language the user uses. If they speak " + p.lang + ", you may answer in " + p.lang + ".\n" +
+      "The user's words may come from speech recognition and contain errors; guess the meaning kindly. Never claim to be a real person; if asked, say you are an AI friend made for them.\n" +
+      "Format: plain spoken words only. Usually one or two short sentences, about 30 words at most; this is a live call, so give one step at a time and let the user ask for more. No lists, markdown, emoji, or stage directions.";
+  }
+  var callCtx = null, callMode = null, on = false, busy = false, muted = false, typing = false, micBlocked = false, history = [], lines = [], showCaps = true, interim = "", mood = "", sec = 0, tick = null;
+  function face(c){ $("face").setAttribute("class", c || ""); }
+  function note(t){ $("note").textContent = t || ""; $("note").hidden = !t; }
+  function state(k){
+    var el = $("state");
+    if (k === "listen") el.innerHTML = '<span><span class="bars"><b></b><b></b><b></b><b></b></span>Listening</span>';
+    else if (k === "think") { el.innerHTML = '<span><span class="dots"><b></b><b></b><b></b></span><em style="font-style:normal"></em></span>'; el.querySelector("em").textContent = S.p.name + " is thinking"; }
+    else if (k === "muted") el.innerHTML = "<span>You are muted</span>";
+    else el.innerHTML = "";
+  }
+  function renderCaps(stream){
+    var box = $("caps"); box.innerHTML = ""; if (!showCaps) return;
+    var items = lines.slice(-2).map(function(l){ return {me:l.me, text:l.text, en:l.en}; });
+    if (stream != null) items = items.concat([{me:false, text:stream}]).slice(-2);
+    if (interim) items = items.concat([{me:true, text:interim}]).slice(-2);
+    items.forEach(function(it, i){ var d = document.createElement("div"); d.className = "cap" + (it.me ? " me" : "") + (i < items.length - 1 ? " old" : ""); d.textContent = (it.me ? "You: " : "") + it.text; if (it.en) { var e = document.createElement("div"); e.className = "capen"; e.textContent = it.en; d.appendChild(e); } box.appendChild(d); });
+  }
+
+  /* her voice */
+  var voices = [];
+  function loadVoices(){ try { voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; } catch(e) { voices = []; } }
+  loadVoices(); if (window.speechSynthesis) speechSynthesis.onvoiceschanged = loadVoices;
+  function pickVoice(lang){
+    var base = lang.split("-")[0];
+    var pool = voices.filter(function(v){ return v.lang === lang; }); if (!pool.length) pool = voices.filter(function(v){ return (v.lang || "").indexOf(base) === 0; });
+    var fem = pool.filter(function(v){ return /female|yuna|sora|heami|google|samantha|zira|linh|natural/i.test(v.name); });
+    return fem[0] || pool[0] || null;
+  }
+  function splitScripts(text){
+    var out = [], cur = null;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i], ko = /[가-힣ㄱ-ㆎ]/.test(ch), neutral = /[\s\d.,!?~'"()\-:;…]/.test(ch);
+      if (cur && (neutral || cur.ko === ko)) cur.text += ch; else { cur = {ko:ko, text:ch}; out.push(cur); }
+    }
+    return out.filter(function(s){ return s.text.trim(); });
+  }
+  var speakToken = 0, speaking = false;
+  function speak(text, done, forceLang){
+    var token = ++speakToken; speaking = true;
+    var finish = function(){ if (token !== speakToken) return; speaking = false; speakEndAt = Date.now(); face(mood); if (done) done(); };
+    face("talking");
+    if (!window.speechSynthesis) { setTimeout(finish, Math.min(9000, 900 + text.length * 55)); return; }
+    try { speechSynthesis.cancel(); } catch(e) {}
+    var segs = splitScripts(text), i = 0, other = forceLang || (S.mic === "home" ? (S.p.voice || "en-US") : "en-US");
+    (function next(){
+      if (token !== speakToken) return;
+      if (i >= segs.length) { finish(); return; }
+      var s = segs[i++], u = new SpeechSynthesisUtterance(s.text);
+      u.lang = s.ko ? "ko-KR" : other;
+      var v = pickVoice(u.lang) || (s.ko ? null : pickVoice("en-US")); if (v) u.voice = v;
+      u.rate = s.ko ? 0.92 : 1.02; u.pitch = 1.05;
+      var moved = false, guard = setTimeout(function(){ if (!moved) { moved = true; next(); } }, 2500 + s.text.length * 110);
+      u.onend = u.onerror = function(){ if (moved) return; moved = true; clearTimeout(guard); next(); };
+      speechSynthesis.speak(u);
+    })();
+  }
+  function hush(){ speakToken++; speaking = false; try { window.speechSynthesis && speechSynthesis.cancel(); } catch(e) {} }
+
+  var TAPPED = " (I tapped this as a button. I haven't told you my exact question yet. Reply with one short, friendly question about what exactly I need. Don't explain or give steps yet.)";
+  function turn(text, visible, tapped){
+    busy = true; note(""); stopListening();
+    if (visible) lines.push({me:true, text:text});
+    history.push({role:"user", content: text + (tapped ? TAPPED : "")}); if (history.length > 30) history = history.slice(-30);
+    mood = "thinking"; face("thinking"); state("think"); renderCaps();
+    var streamed = false;
+    ask(friendRules(callMode) + ctxRules(), history, {onText:function(t){ if (!on) return; if (!streamed) { streamed = true; state(""); } renderCaps(t); }})
+      .then(function(reply){
+        if (!on) return;
+        reply = String(reply || "").trim() || "…";
+        history.push({role:"assistant", content:reply}); lines.push({me:false, text:reply});
+        mood = ""; busy = false; state(""); renderCaps();
+        speak(reply, function(){ if (on) listen(); });
+      }, function(e){
+        if (!on) return;
+        history.pop(); busy = false; mood = ""; face(""); state(""); renderCaps();
+        var m = errorCopy(e); if (m) note(m); listen();
+      });
+  }
+  function send(t){ t = String(t || "").trim(); if (!t || busy || !on) return; $("topics").hidden = true; $("schoolPick").hidden = true; $("sitPick").hidden = true; hush(); turn(t, true); }
+  var GREET_EN = "Hi! It's good to see you. What can I help you with today?";
+  var GREET_LINES = [
+    ["vietnam", "Chào bạn! Gặp bạn vui quá. Hôm nay mình giúp gì được cho bạn?"], ["tagalog", "Uy, kumusta! Ang saya kitang makita. Ano'ng maitutulong ko sa'yo ngayon?"], ["filipino", "Uy, kumusta! Ang saya kitang makita. Ano'ng maitutulong ko sa'yo ngayon?"],
+    ["mandarin", "你好！见到你真高兴。今天有什么我可以帮你的吗？"], ["chinese", "你好！见到你真高兴。今天有什么我可以帮你的吗？"], ["uzbek", "Salom! Sizni ko'rganimdan xursandman. Bugun sizga qanday yordam bera olaman?"],
+    ["swed", "Hej! Kul att se dig. Vad kan jag hjälpa dig med i dag?"], ["spanish", "¡Hola! Qué gusto verte. ¿En qué te puedo ayudar hoy?"], ["russian", "Привет! Рада тебя видеть. Чем я могу помочь тебе сегодня?"],
+    ["thai", "สวัสดี! ดีใจที่ได้เจอนะ วันนี้มีอะไรให้ช่วยไหม"], ["japanese", "こんにちは！会えてうれしいな。今日は何を手伝おうか？"], ["indonesian", "Halo! Senang bertemu denganmu. Ada yang bisa aku bantu hari ini?"],
+    ["mongolian", "Сайн уу! Чамайг харсандаа баяртай байна. Өнөөдөр юугаар туслах вэ?"], ["nepali", "नमस्ते! तपाईंलाई देखेर खुसी लाग्यो। आज म के मद्दत गर्न सक्छु?"], ["french", "Coucou ! Contente de te voir. Je peux t'aider avec quoi aujourd'hui ?"],
+    ["german", "Hallo! Schön, dich zu sehen. Wobei kann ich dir heute helfen?"], ["khmer", "សួស្តី! រីករាយដែលបានជួប។ ថ្ងៃនេះខ្ញុំអាចជួយអ្វីបាន?"], ["bengali", "হ্যালো! তোমাকে দেখে ভালো লাগছে। আজ কী সাহায্য করতে পারি?"],
+    ["urdu", "ہیلو! تمہیں دیکھ کر خوشی ہوئی۔ آج میں تمہاری کیا مدد کر سکتی ہوں؟"], ["arabic", "مرحبًا! سعيدة برؤيتك. بماذا أستطيع مساعدتك اليوم؟"], ["portuguese", "Oi! Que bom te ver. Em que posso te ajudar hoje?"],
+    ["kazakh", "Сәлем! Сені көргеніме қуаныштымын. Бүгін саған қалай көмектесе аламын?"], ["english", GREET_EN]
+  ];
+  function greetLine(){
+    var p = S.p, l = String(p.lang || "").toLowerCase();
+    if (p.greetLine) return p.greetLine;
+    for (var i = 0; i < GREET_LINES.length; i++) if (l.indexOf(GREET_LINES[i][0]) >= 0) return GREET_LINES[i][1];
+    return GREET_EN;
+  }
+  var ICONS = {
+    hospital:'<rect x="4" y="4" width="16" height="16" rx="3"></rect><path d="M12 8v8M8 12h8"></path>',
+    bank:'<path d="M3 10l9-6 9 6"></path><path d="M5 10v8M10 10v8M14 10v8M19 10v8M3 20h18"></path>',
+    school:'<path d="M2 9l10-5 10 5-10 5z"></path><path d="M6 11v5c3 2 9 2 12 0v-5"></path>',
+    office:'<path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h5"></path>',
+    work:'<rect x="3" y="8" width="18" height="12" rx="2"></rect><path d="M9 8V5h6v3M3 13h18"></path>',
+    home:'<path d="M4 11l8-7 8 7v9H4z"></path><path d="M10 20v-5h4v5"></path>',
+    shop:'<path d="M3 4h2l2.4 11h10.8L21 7H6"></path><circle cx="9" cy="19" r="1.5"></circle><circle cx="17" cy="19" r="1.5"></circle>',
+    transit:'<rect x="5" y="3" width="14" height="14" rx="3"></rect><path d="M5 11h14M8 21l1-4M16 21l-1-4"></path>',
+    phone:'<rect x="7" y="2" width="10" height="20" rx="2"></rect><path d="M11 18h2"></path>',
+    care:'<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.3A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"></path>',
+    other:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path>'
+  };
+  function defaultTopics(){
+    var r = S.p.role;
+    function q(t){ return "I have a question: how do I " + t.toLowerCase() + "?"; }
+    function sits(list){ return list.map(function(t){ return {label:t, ask:q(t)}; }); }
+    return [
+      {icon:"hospital", label:"Hospital", ask:"I have a question about the hospital.", situations:sits(["Book an appointment", "Check in at reception", "Get an itemized bill"])},
+      {icon:"bank", label:"Bank", ask:"I have a question about the bank.", situations:sits(["Open an account", "Send money home", "Replace a lost card"])},
+      r === "parent" ? {icon:"school", label:"Child's school", ask:"I have a question about my child's school.", situations:sits(["Read a school notice", "Message the teacher", "Report an absence"])}
+        : r === "student" ? {icon:"school", label:"My school", ask:"I have a question about my own studies. I'm a student here.", situations:sits(["Register for classes", "Email a professor", "Handle student visa papers"])}
+        : {icon:"school", label:"School", ask:"", pick:true},
+      {icon:"office", label:"Paperwork", ask:"I have a question about paperwork at a government office.", situations:sits(["Renew my residence card", "Report a new address", "Sign up for health insurance"])}
+    ];
+  }
+  function cleanTopics(list){
+    if (!Array.isArray(list)) return null;
+    var out = list.map(function(t){
+      if (!t || !t.label || !t.ask) return null;
+      var sit = Array.isArray(t.situations) ? t.situations.map(function(x){ return x && x.label && x.ask ? {label:String(x.label).slice(0, 40), ask:String(x.ask).slice(0, 200)} : null; }).filter(Boolean).slice(0, 3) : [];
+      return {icon: ICONS[t.icon] ? t.icon : "other", label: String(t.label).slice(0, 22), ask: String(t.ask).slice(0, 200), situations: sit};
+    }).filter(Boolean).slice(0, 4);
+    return out.length >= 2 ? out : null;
+  }
+  function openPlace(t){
+    $("topics").hidden = true; $("sitPick").hidden = false;
+    $("sitTitle").textContent = t.label + " · what do you need?";
+    var row = $("sitRow"); row.innerHTML = "";
+    (t.situations || []).concat([{label:"Something else", ask:t.ask, other:true}]).forEach(function(x){
+      var b = document.createElement("button"); b.className = "sit" + (x.other ? " else" : ""); b.textContent = x.label;
+      b.addEventListener("click", function(){ if (busy || !on) return; $("sitPick").hidden = true; hush(); turn(x.ask, true, true); });
+      row.appendChild(b);
+    });
+  }
+  $("sitBack").addEventListener("click", function(){ $("sitPick").hidden = true; $("topics").hidden = false; syncTopicBtn(); });
+  function pickerOpen(){ return !$("topics").hidden || !$("sitPick").hidden || !$("schoolPick").hidden; }
+  function syncTopicBtn(){ var o = pickerOpen(); $("topicBtn").classList.toggle("lit", o); $("topicBtn").setAttribute("aria-pressed", String(o)); $("topicBtn").setAttribute("aria-label", o ? "Hide topics" : "Show topics"); }
+  $("topicBtn").addEventListener("click", function(){
+    if (!on || !$("ringing").hidden) return;
+    if (pickerOpen()) { $("topics").hidden = true; $("sitPick").hidden = true; $("schoolPick").hidden = true; }
+    else { renderTopics(); $("topics").hidden = false; }
+    syncTopicBtn();
+  });
+  new MutationObserver(syncTopicBtn).observe($("topics"), {attributes:true, attributeFilter:["hidden"]});
+  new MutationObserver(syncTopicBtn).observe($("sitPick"), {attributes:true, attributeFilter:["hidden"]});
+  new MutationObserver(syncTopicBtn).observe($("schoolPick"), {attributes:true, attributeFilter:["hidden"]});
+  function renderTopics(){
+    var row = $("topicRow"); row.innerHTML = "";
+    var list = (S.p.topics && S.p.topics.length) ? S.p.topics : defaultTopics();
+    list.forEach(function(t){
+      var b = document.createElement("button"); b.className = "topic";
+      b.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0">' + (ICONS[t.icon] || ICONS.other) + '</svg><span></span>';
+      b.querySelector("span").textContent = t.label;
+      b.addEventListener("click", function(){
+        if (busy || !on) return;
+        if (t.pick) { $("topics").hidden = true; $("schoolPick").hidden = false; return; }
+        if (t.situations && t.situations.length) { openPlace(t); return; }
+        $("topics").hidden = true; hush(); turn(t.ask, true, true);
+      });
+      row.appendChild(b);
+    });
+  }
+  function greet(){
+    renderTopics();
+    var say = greetLine(), en = say === GREET_EN ? "" : GREET_EN;
+    history.push({role:"user", content:"(The video call just connected.)"});
+    history.push({role:"assistant", content: say + (en ? " (" + en + ")" : "")});
+    lines.push({me:false, text:say, en:en});
+    renderCaps(); $("topics").hidden = false;
+    speak(say, function(){ if (on) listen(); }, en ? (S.p.voice || "en-US") : "en-US");
+  }
+  var SCHOOL = {child:"I have a question about my child's school.", me:"I have a question about my own studies. I'm a student here."};
+  document.querySelectorAll("[data-school]").forEach(function(b){
+    b.addEventListener("click", function(){
+      if (busy || !on) return; $("schoolPick").hidden = true;
+      var child = b.getAttribute("data-school") === "child";
+      function q(t){ return {label:t, ask:"I have a question: how do I " + t.toLowerCase() + "?"}; }
+      openPlace(child ? {label:"Child's school", ask:SCHOOL.child, situations:[q("Read a school notice"), q("Message the teacher"), q("Report an absence")]}
+                      : {label:"My school", ask:SCHOOL.me, situations:[q("Register for classes"), q("Email a professor"), q("Handle student visa papers")]});
+    });
+  });
+
+  /* always-on listening */
+  var rec = null, recOn = false, heard = "";
+  function listen(){
+    if (dict) {
+      if (on && !busy && !speaking && !muted && !typing && dTarget === "call" && dict.active()) { dBuf = ""; interim = ""; state("listen"); face("listening"); }
+      else if (on && !busy && !speaking) state(muted ? "muted" : "");
+      return;
+    }
+    if (!on || busy || speaking || muted || typing || micBlocked || recOn) { if (on && !busy && !speaking) state(muted ? "muted" : ""); return; }
+    if (!SR) { micBlocked = true; return; }
+    try {
+      rec = new SR(); rec.lang = micLang(); rec.interimResults = true; rec.continuous = false; heard = "";
+      rec.onresult = function(e){ var s = ""; for (var i = 0; i < e.results.length; i++) s += e.results[i][0].transcript; heard = s; interim = s; renderCaps(); };
+      rec.onerror = function(e){ if (e.error === "not-allowed" || e.error === "service-not-allowed" || e.error === "audio-capture") { micBlocked = true; } };
+      rec.onend = function(){
+        recOn = false; interim = ""; var s = heard.trim(); heard = "";
+        if (s && on && !muted) { send(s); return; }
+        renderCaps(); if (on && !busy && !speaking) setTimeout(listen, 250);
+      };
+      rec.start(); recOn = true; face("listening"); state("listen");
+    } catch(e) { recOn = false; }
+  }
+  function stopListening(){ if (rec && recOn) { try { rec.abort(); } catch(e) {} } recOn = false; interim = ""; if (!busy) face(mood); }
+  function setMuted(m){
+    muted = m; var btn = $("muteBtn");
+    if (dict && on) { if (m) { clearTimeout(dTimer); dBuf = ""; interim = ""; dStop(); } else { dTarget = "call"; dBuf = ""; dStart(); } }
+    btn.classList.toggle("lit", m); btn.setAttribute("aria-pressed", String(m)); $("slash").toggleAttribute("hidden", !m);
+    btn.setAttribute("aria-label", m ? "Unmute and talk" : "Mute and type");
+    if (m) openKb(); else closeKb();
+  }
+  $("muteBtn").addEventListener("click", function(){
+    if (muted) { micBlocked = false; note(""); }
+    setMuted(!muted);
+  });
+  $("ccBtn").addEventListener("click", function(){ showCaps = !showCaps; this.classList.toggle("lit", showCaps); this.setAttribute("aria-pressed", String(showCaps)); renderCaps(); });
+  $("langBtn").addEventListener("click", function(){ S.mic = S.mic === "ko" ? "en" : S.mic === "en" ? "home" : "ko"; store(); $("langLabel").textContent = micLabel(); if (recOn) { stopListening(); setTimeout(listen, 200); } });
+  function openKb(){ typing = true; $("typebar").hidden = false; stopListening(); state(""); setTimeout(function(){ $("msg").focus(); }, 50); }
+  function closeKb(){ typing = false; $("typebar").hidden = true; state(""); listen(); }
+  $("typebar").addEventListener("submit", function(e){ e.preventDefault(); var t = $("msg").value; $("msg").value = ""; send(t); });
+
+
+  function fmt(s){ return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
+  function startCall(ctx){
+    var p = S.p;
+    callCtx = (ctx && ctx.call) ? ctx : null;
+    if (dict) { dTarget = "call"; dBuf = ""; dStart(); }
+    callMode = "help"; $("topics").hidden = true; $("schoolPick").hidden = true; $("sitPick").hidden = true;
+    on = true; busy = false; muted = false; typing = false; micBlocked = false; history = []; lines = []; sec = 0; interim = ""; mood = "";
+    $("face").innerHTML = faceMarkup(friendLook(), true); face("");
+    $("avR").innerHTML = portrait(friendLook()); $("ringName").textContent = p.name; $("ringSt").textContent = "Calling…";
+    $("kName").textContent = p.name; $("timer").textContent = ""; $("liveDot").style.background = "var(--warn)"; $("langLabel").textContent = micLabel();
+    $("muteBtn").classList.remove("lit"); $("slash").toggleAttribute("hidden", true); $("typebar").hidden = true; $("muteBtn").setAttribute("aria-label", "Mute and type");
+    note(""); state(""); renderCaps();
+    show("call"); $("ringing").hidden = false;
+    if (window.speechSynthesis) { try { speechSynthesis.speak(new SpeechSynthesisUtterance("")); } catch(e) {} }
+    setTimeout(function(){ if (on) $("ringSt").textContent = "Connecting…"; }, 1300);
+    setTimeout(function(){
+      if (!on) return;
+      $("ringing").hidden = true; $("liveDot").style.background = "var(--go)"; $("timer").textContent = "0:00";
+      tick = setInterval(function(){ sec++; $("timer").textContent = fmt(sec); }, 1000);
+      if (callCtx && callCtx.type === "practice") turn("(The practice call just connected. In one short sentence in my language, say what we'll practice and that you'll play the staff. Then start the scene with your first short line in Korean.)", false);
+      else greet();
+    }, 2400);
+  }
+  function endCall(){
+    on = false; hush(); stopListening(); clearTimeout(dTimer); if (dict && dTarget === "call") { dTarget = null; dStop(); } if (ctl) try { ctl.abort(); } catch(e) {}
+    clearInterval(tick);
+    if (!lines.some(function(l){ return l.me; })) { show(callCtx ? "log" : "contacts"); if (callCtx) openLog(callCtx.call); callCtx = null; return; }
+    if (callCtx && callCtx.type === "practice") { var back = callCtx.call; callCtx = null; openLog(back); toast("Practice ended. Try again anytime."); return; }
+    var firstMe = lines.filter(function(l){ return l.me; })[0];
+    var practice = false;
+    var c = {id:"c" + Date.now(), name:S.p.name, dur:fmt(sec), lines:lines.slice(), when:new Date().toISOString(), practice:practice, follow:[], ticks:{},
+      title: practice ? "Practice · " + (callCtx.call.sum && callCtx.call.sum.title || callCtx.call.title) : (firstMe ? firstMe.text.slice(0, 36) + (firstMe.text.length > 36 ? "…" : "") : "Quick hello")};
+    if (callCtx && callCtx.type === "continue") c.from = callCtx.call.title;
+    callCtx = null;
+    S.calls.unshift(c); if (S.calls.length > 20) S.calls = S.calls.slice(0, 20); store(); renderRecent();
+    openLog(c, true); summarize(c);
+  }
+  function whenLabel(iso){
+    var t = new Date(iso), now = new Date(), day = 86400000;
+    var d0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(), d1 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+    var diff = Math.round((d0 - d1) / day);
+    var dayTxt = diff === 0 ? "Today" : diff === 1 ? "Yesterday" : diff < 7 ? ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][t.getDay()] : (t.getMonth() + 1) + "/" + t.getDate();
+    return dayTxt + " " + hhmm(iso);
+  }
+  function hhmm(iso){ var t = new Date(iso); return ("0" + t.getHours()).slice(-2) + ":" + ("0" + t.getMinutes()).slice(-2); }
+  var curLog = null, lgBusy = false, lgPending = null;
+  function ctxRules(){
+    if (!callCtx) return "";
+    var c = callCtx.call, sum = c.sum ? JSON.stringify(c.sum) : "";
+    var tr = c.lines.slice(-24).map(function(l){ return (l.me ? "User: " : "You: ") + l.text; }).join("\n");
+    if (callCtx.type === "practice") {
+      return "\nTHIS IS A PRACTICE CALL for a real situation you discussed earlier. Summary of that call: " + sum + "\n" +
+        "Play the staff member the user will meet there (clerk, nurse, teacher, officer) and speak as them in short, easy, polite Korean, one line at a time. The user practices the sentences from the summary's 'say' list. After each user line, step out briefly in the user's language with one short tip or praise, then continue the scene with a realistic next question from the staff. After 3 to 5 exchanges, wrap up kindly and tell them they're ready.\n";
+    }
+    return "\nThe user called back about an earlier conversation. Summary: " + sum + "\nRecent transcript:\n" + tr + "\nContinue from there; don't repeat what you already explained unless asked.\n";
+  }
+  function userFacts(){
+    var p = S.p, r = p.role;
+    var role = r === "parent" ? "The user is a parent with children in Korea." : r === "student" ? "The user is a student themselves and has NO children; never assume a child." : r === "both" ? "The user is both a student and a parent." : "";
+    return (role ? role + " " : "") + (p.user ? "Notes about the user: " + p.user : "");
+  }
+  function sumRules(){
+    return "You turn a conversation between an immigrant living in South Korea and their AI friend " + S.p.name + " into a short, practical summary the user can use later, for example at the counter. About the user: " + userFacts() + " Every sentence you write, especially the Korean ones, must fit this user's real situation and the conversation (for example, a student talks about their own class, not a child's teacher). Use ONLY what was actually said for every field except \"say\"; never add new advice." +
+      ' Reply with ONLY one JSON object: {"title": "Place · task, at most 5 words, like Bank · Open an account", "place": "the kind of place in 1 to 3 plain words, like the hospital, the bank or your child\'s school; never add notes, names or brackets", "summary": "one short sentence starting with You asked, under 15 words", "deadline": "", "bring": ["items to bring, with the Korean name in parentheses if it came up"], "steps": ["short ordered steps"], "where": "place and opening hours if mentioned", "say": [{"ko": "a Korean sentence to say or show to staff", "meaning": "its meaning"}] (ALWAYS give 2 or 3 sentences the user would really say to the STAFF at that place for this task: first, Korean sentences ' + S.p.name + ' suggested for the staff in this call; then, if needed, natural polite sentences people actually use there, specific to this task, such as saying what they came for and describing their situation or symptoms as discussed in the call (if no details came up, a sentence asking what they need to do, such as how to register as a first-time patient). NEVER copy what the user said to ' + S.p.name + ' during the call, such as asking her to speak English or more slowly, and never use vague sentences like I am going to the hospital. At most one general sentence, such as asking staff to speak slowly), "contacts": [{"name": "", "number": ""}], "check": "where to confirm something uncertain", "words": [{"ko": "Korean word that came up", "meaning": ""}]}. Apart from say, use empty strings and empty arrays for anything that was not discussed. At most 6 items per list.';
+  }
+  function transcriptOf(c){
+    var out = c.lines.map(function(l){ return (l.me ? "User: " : S.p.name + ": ") + l.text; });
+    (c.follow || []).forEach(function(m){ out.push(m.doc ? S.p.name + ": (explained a document: " + (m.doc.title || "") + ". " + (m.doc.todo || []).join("; ") + ")" : m.img ? "User: (sent a photo) " + (m.text || "") : (m.me ? "User: " : S.p.name + ": ") + m.text); });
+    return out.join("\n").slice(-12000);
+  }
+  function summarize(c){
+    c.sumState = "busy"; if (curLog === c) renderSum(c);
+    return ask(sumRules(), [{role:"user", content:"Conversation:\n" + transcriptOf(c)}], {json:true}).then(function(r){
+      r = r || {}; function arr(x){ return Array.isArray(x) ? x : []; }
+      c.sum = {title:String(r.title || "").slice(0, 40), place:String(r.place || ""), summary:String(r.summary || ""), deadline:String(r.deadline || ""), bring:arr(r.bring).map(String).slice(0, 6), steps:arr(r.steps).map(String).slice(0, 6), where:String(r.where || ""),
+        say:arr(r.say).filter(function(x){ return x && x.ko; }).slice(0, 4), contacts:arr(r.contacts).filter(function(x){ return x && x.number; }).slice(0, 4), check:String(r.check || ""), words:arr(r.words).filter(function(x){ return x && x.ko; }).slice(0, 6)};
+      if (c.sum.title && !c.practice) c.title = c.sum.title;
+      c.sumState = "ok"; store(); renderRecent(); if (curLog === c) { renderSum(c); $("lgName").textContent = c.title; }
+    }, function(){ c.sumState = "err"; if (curLog === c) renderSum(c); });
+  }
+  function el(tag, cls, text){ var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  var IC_BAG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="7" width="16" height="13" rx="2"></rect><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg>';
+  var IC_PIN = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"></path><circle cx="12" cy="9.5" r="2.5"></circle></svg>';
+  function renderSum(c){
+    var box = $("lgSum"); box.innerHTML = "";
+    if (c.sumState === "busy" && !c.sum) { box.innerHTML = '<div class="organizing"><span class="dots"><b></b><b></b><b></b></span>Organizing your call…</div>'; return; }
+    if (!c.sum) {
+      var e = el("div", "organizing", c.sumState === "err" ? "Couldn't organize this call. " : "No summary yet. ");
+      var r = el("button", "", "Try again"); r.style.cssText = "color:#AEB8FF;font-weight:600"; r.addEventListener("click", function(){ summarize(c); }); e.appendChild(r); box.appendChild(e); return;
+    }
+    var m = c.sum;
+    box.appendChild(el("p", "sumline", m.summary || c.title));
+    function group(icon, title){ var g = el("section", "grp"); var h = el("h3", "gh"); h.innerHTML = icon; h.appendChild(el("span", "", title)); g.appendChild(h); return g; }
+    function sub(g, k){ g.appendChild(el("div", "gk", k)); }
+    /* 1. Before you go */
+    if (m.deadline || m.bring.length || m.steps.length) {
+      var g1 = group(IC_BAG, "Before you go");
+      if (m.deadline) g1.appendChild(el("div", "due", "Due " + m.deadline));
+      if (m.bring.length) {
+        sub(g1, "Bring"); c.ticks = c.ticks || {};
+        m.bring.forEach(function(item, i){
+          var lab = el("label", "tick" + (c.ticks[i] ? " done" : "")), cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!c.ticks[i];
+          cb.addEventListener("change", function(){ c.ticks[i] = cb.checked; lab.classList.toggle("done", cb.checked); store(); });
+          lab.appendChild(cb); lab.appendChild(el("span", "", item)); g1.appendChild(lab);
+        });
+      }
+      if (m.steps.length) { sub(g1, "Steps"); var ol = el("ol", "steps"); m.steps.forEach(function(x){ ol.appendChild(el("li", "", x)); }); g1.appendChild(ol); }
+      box.appendChild(g1);
+    }
+    /* 2. At the place */
+    if (m.where || m.say.length || m.check || m.contacts.length) {
+      var place = (m.place || "").trim();
+      var g2 = group(IC_PIN, place ? "At " + place : "When you get there");
+      if (m.where) g2.appendChild(el("div", "where", m.where));
+      m.say.forEach(function(x){
+        var w = el("div", "sayl"); w.appendChild(el("div", "gk", "Say or show")); var k = el("div", "ko", x.ko); k.lang = "ko"; w.appendChild(k); if (x.meaning) w.appendChild(el("div", "en", x.meaning));
+        var bb = el("div", "b"), b1 = el("button", "", "Show to staff"), b2 = el("button", "g", "▶ Play");
+        b1.addEventListener("click", function(){ showStaff(x); }); b2.addEventListener("click", function(){ sayKo(x.ko); });
+        bb.appendChild(b1); bb.appendChild(b2); w.appendChild(bb); g2.appendChild(w);
+      });
+      m.contacts.forEach(function(x){ g2.appendChild(el("div", "where", (x.name ? x.name + " · " : "") + x.number)); });
+      if (m.check) g2.appendChild(el("div", "chk", "Check: " + m.check));
+      box.appendChild(g2);
+    }
+    /* 3. Korean from this call */
+    if (m.words.length) {
+      var w3 = el("div", "words"); w3.appendChild(el("span", "wl", "Korean from this call"));
+      m.words.forEach(function(x){ var sp = el("span", "wc", x.ko + (x.meaning ? " · " + x.meaning : "")); sp.lang = "ko"; w3.appendChild(sp); });
+      box.appendChild(w3);
+    }
+    if (c.sumState === "busy") { var u = el("div", "", "Updating…"); u.style.cssText = "font-size:12px;color:var(--muted)"; box.appendChild(u); }
+  }
+  function sayKo(text){
+    if (!window.speechSynthesis) return;
+    try { speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance(text); u.lang = "ko-KR"; var v = pickVoice("ko-KR"); if (v) u.voice = v; u.rate = .88; speechSynthesis.speak(u); } catch(e) {}
+  }
+  function showStaff(x){ $("staffKo").textContent = x.ko; $("staffEn").textContent = x.meaning || ""; $("staff").hidden = false; }
+  $("staffPlay").addEventListener("click", function(){ sayKo($("staffKo").textContent); });
+  $("staffClose").addEventListener("click", function(){ $("staff").hidden = true; try { speechSynthesis.cancel(); } catch(e) {} });
+
+  function openLog(c, fresh){
+    curLog = c; c.follow = c.follow || []; c.ticks = c.ticks || {};
+    $("lgAv").innerHTML = portrait(friendLook());
+    $("lgName").textContent = c.title;
+    var day = new Date(c.when).toDateString() === new Date().toDateString() ? "Today" : new Date(c.when).toLocaleDateString();
+    $("lgMeta").textContent = (c.practice ? "Practice call" : "Video call") + " with " + c.name + " · " + day + " " + hhmm(c.when) + " · " + c.dur;
+    $("lgPractice").hidden = !!c.practice;
+    $("lgFollowBtn").querySelector("small").textContent = c.name + " remembers this call";
+    renderSum(c);
+    $("lgFullSum").textContent = "Full conversation (" + c.lines.length + (c.lines.length === 1 ? " message)" : " messages)");
+    var ln = $("lgLines"); ln.innerHTML = "";
+    c.lines.forEach(function(l){ ln.appendChild(el("div", "m " + (l.me ? "u" : "h"), l.text)); });
+    $("lgFull").open = false;
+    $("lgFollowBtn").querySelector("small").textContent = c.follow.length ? (function(n){ return "Continue · " + n + (n === 1 ? " question" : " questions") + " so far"; })(c.follow.filter(function(m){ return m.me; }).length) : c.name + " remembers this call";
+    show("log");
+    $("lgBody").scrollTop = 0;
+    if (fresh) toast("Saved to Recent calls");
+    if (!c.sum && c.sumState !== "busy" && c.lines.length) summarize(c);
+  }
+  $("lgBack").addEventListener("click", function(){ curLog = null; show("contacts"); });
+  $("lgCall").addEventListener("click", function(){ if (curLog) startCall({type:"continue", call:curLog}); });
+  $("lgPractice").addEventListener("click", function(){ if (curLog) startCall({type:"practice", call:curLog}); });
+  function openFollow(){
+    var c = curLog; if (!c) return;
+    $("fuAv").innerHTML = portrait(friendLook()); $("fuName").textContent = "Follow-up with " + c.name; $("fuSub").textContent = "About: " + c.title;
+    var fw = $("lgFollow"); fw.innerHTML = "";
+    fw.appendChild(el("div", "mark", c.name + " remembers your call about " + c.title));
+    if (!c.follow.length) fw.appendChild(el("div", "m h", "What happened? Tell me what you need, or send me a photo of the paper they gave you."));
+    c.follow.forEach(function(m){ if (m.doc) docCard(m.doc, fw); else if (m.img) picBubble(m, fw); else fw.appendChild(el("div", "m " + (m.me ? "u" : "h"), m.text)); });
+    lgPending = null; $("lgPrev").hidden = true; $("lgIn").value = "";
+    show("fu"); fw.scrollTop = fw.scrollHeight; setTimeout(function(){ $("lgIn").focus(); }, 50);
+  }
+  $("lgFollowBtn").addEventListener("click", openFollow);
+  $("fuBack").addEventListener("click", function(){ if (curLog) openLog(curLog); });
+
+  /* follow-up chat inside a call log */
+  function followRules(c){
+    return chatRules() + "\nThis chat continues an earlier call about: " + c.title + ". Summary: " + JSON.stringify(c.sum || {}) +
+      "\nEarlier conversation:\n" + transcriptOf(c).slice(-6000) +
+      "\nThe user may be on site right now (at the counter or the office). Keep replies very short and practical, and give the exact Korean sentence to show the staff when it helps.";
+  }
+  function followHistory(c){
+    var out = [{role:"user", content:"(I opened the notes from our call.)"}];
+    c.follow.slice(-30).forEach(function(m){
+      var role = m.me ? "user" : "assistant", last = out[out.length - 1];
+      var t = m.doc ? "(I explained the document: " + (m.doc.title || "") + ". To do: " + (m.doc.todo || []).join("; ") + ")" : m.img ? "(I sent a photo of a document.) " + (m.text || "") : m.text;
+      if (last.role === role) last.content += "\n" + t; else out.push({role:role, content:t});
+    });
+    return out;
+  }
+  function lgTyping(){ var t = el("div", "typing"); t.innerHTML = "<b></b><b></b><b></b>"; $("lgFollow").appendChild(t); var b = $("lgFollow"); b.scrollTop = b.scrollHeight; return t; }
+  function lgErr(e){ var m = errorCopy(e); if (e && e.code === "images_unavailable") m = "Photos can't be sent from this page. Open the downloaded file with an API key to send documents."; if (m) $("lgFollow").appendChild(el("div", "m err", m)); }
+  function firstFollow(c){}
+  function lgSend(text){
+    var c = curLog; if (!c || lgBusy) return;
+    text = String(text || "").trim();
+    if (lgPending) { lgSendDoc(c, text); return; }
+    if (!text) return;
+    lgBusy = true; firstFollow(c); c.follow.push({me:true, text:text}); store();
+    $("lgFollow").appendChild(el("div", "m u", text));
+    var t = lgTyping(), b = null, body = $("lgFollow");
+    ask(followRules(c), followHistory(c), {onText:function(tx){ if (!b) { t.remove(); b = el("div", "m h"); $("lgFollow").appendChild(b); } b.textContent = tx; body.scrollTop = body.scrollHeight; }})
+      .then(function(reply){
+        reply = String(reply || "").trim() || "…"; t.remove(); if (!b) { b = el("div", "m h"); $("lgFollow").appendChild(b); } b.textContent = reply;
+        c.follow.push({me:false, text:reply}); store(); lgBusy = false; body.scrollTop = body.scrollHeight;
+        summarize(c);
+      }, function(e){ t.remove(); if (b) b.remove(); lgBusy = false; lgErr(e); });
+  }
+  function lgSendDoc(c, text){
+    var pic = lgPending; lgPending = null; $("lgPrev").hidden = true; lgBusy = true; firstFollow(c);
+    var mine = {me:true, img:pic.thumb, text:text}; c.follow.push(mine); store(); picBubble(mine, $("lgFollow"));
+    var t = lgTyping();
+    var q = (text ? "My question about this document: " + text : "What is this document and what do I need to do?") + " (Context: we talked about " + c.title + ".)";
+    ask(docRules(), [{role:"user", content:q}], {json:true, image:pic.full, blob:pic.blob}).then(function(r){
+      t.remove(); r = r || {}; lgBusy = false;
+      if (r.say) { c.follow.push({me:false, text:String(r.say)}); $("lgFollow").appendChild(el("div", "m h", String(r.say))); }
+      var doc = {title:r.title, what:r.what, todo:Array.isArray(r.todo) ? r.todo.map(String) : [], deadline:r.deadline, words:Array.isArray(r.words) ? r.words : [], check:r.check, translation:r.translation};
+      c.follow.push({me:false, doc:doc}); store(); docCard(doc, $("lgFollow"));
+      summarize(c);
+    }, function(e){ t.remove(); lgBusy = false; lgErr(e); });
+  }
+  $("lgForm").addEventListener("submit", function(e){ e.preventDefault(); var v = $("lgIn").value; $("lgIn").value = ""; lgSend(v); });
+  $("lgCam").addEventListener("click", function(){ if (!lgBusy) $("lgFile").click(); });
+  $("lgFile").addEventListener("change", function(){
+    var f = this.files && this.files[0]; this.value = ""; if (!f) return;
+    Promise.all([shrink(f, 1568, .85), shrink(f, 360, .7)]).then(function(r){
+      lgPending = {full:r[0].url, blob:r[0].blob, thumb:r[1].url};
+      $("lgPrevImg").src = lgPending.thumb; $("lgPrev").hidden = false; $("lgIn").focus();
+    });
+  });
+  $("lgPrevX").addEventListener("click", function(){ lgPending = null; $("lgPrev").hidden = true; });
+
+  /* dictation: speak, and the words appear in the text box */
+  function dictation(btn, input){
+    var r = null;
+    btn.addEventListener("click", function(){
+      if (dict) { dTap(btn, input, function(){ input.focus(); }); return; }
+      if (btn.classList.contains("on")) { try { r && r.stop(); } catch(e) {} return; }
+      if (!SR) return;
+      var base = input.value ? input.value.replace(/\s*$/, " ") : "";
+      try {
+        r = new SR(); r.lang = micLang(); r.interimResults = true; r.continuous = false;
+        r.onresult = function(e){ var t = ""; for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript; input.value = base + t; };
+        r.onerror = function(){};
+        r.onend = function(){ btn.classList.remove("on"); input.focus(); };
+        r.start(); btn.classList.add("on");
+      } catch(e) { btn.classList.remove("on"); }
+    });
+  }
+  dictation($("lgMic"), $("lgIn"));
+  dictation($("chMic"), $("chIn"));
+  $("endBtn").addEventListener("click", endCall);
+
+  /* ---------- start ---------- */
+  if (S.created) { var R0 = regionOf(S.p.country); if (R0 && (R0.skin.indexOf(S.p.skin) < 0 || R0.hair.indexOf(S.p.hair) < 0)) { fitLook(); store(); } }
+  renderContacts();
+  show(S.created ? "contacts" : "welcome");
+})();
+</script>
+
+</body>
+</html>
